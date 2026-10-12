@@ -2,13 +2,13 @@
 
 ## **Overview and scope**
 
-Kakitori is a VLC extension that transcribes a queued Japanese-language video with ElevenLabs Scribe v2, adds the subtitles as a track inside the original file (MP4, M4V or MOV), and notifies the user when it's ready. Open source; each user supplies their own ElevenLabs API key.
+Kakitori is a VLC extension that transcribes a Japanese-language video the user picks with ElevenLabs Scribe v2, adds the subtitles as a track inside the original file (MP4, M4V or MOV), and notifies the user when it's ready. Open source; each user supplies their own ElevenLabs API key.
 
 **v1 scope**
 
 | Area | v1 |
 | :---- | :---- |
-| Trigger | VLC Lua extension (menu item) |
+| Trigger | VLC Lua extension (Extensions menu item opening the Kakitori window) |
 | VLC version | 3.0.x |
 | OS | Windows x64; macOS arm64 \+ x64 |
 | Engine | ElevenLabs Scribe v2 only |
@@ -26,20 +26,20 @@ Terms (Transcription, Video, Subtitle track, Pending copy) are defined in CONTEX
 **First run**
 
 1. User runs the one-line command from the README, then restarts VLC. Windows (PowerShell): irm https\://github.com/\<owner\>/kakitori-vlc/releases/latest/download/install.ps1 | iex. macOS (Terminal): curl \-fsSL https\://github.com/\<owner\>/kakitori-vlc/releases/latest/download/install.sh | sh.  
-2. User clicks View → Kakitori → Transcribe (macOS: VLC → Extensions → Kakitori → Transcribe).  
+2. User clicks View → Kakitori (macOS: VLC → Extensions → Kakitori), then Transcribe in the Kakitori window.  
 3. Extension finds no saved key and shows a dialog with a masked API key field and Save.  
    
 
 **Normal run**
 
-1. User adds a video to the playlist without playing it (drag in, or Media → Open with Enqueue).  
-2. User clicks View → Kakitori → Transcribe.  
-3. Extension selects the target item, asks the user to confirm it (file name and duration), writes a job file, launches the core binary detached, and closes immediately.  
+1. User clicks View → Kakitori (macOS: VLC → Extensions → Kakitori), then Choose video….  
+2. Extension writes a job file, launches the core binary detached, and closes immediately.  
+3. Core binary shows the system file picker (MP4, M4V, MOV only), then asks "Transcribe \<name\> (\<duration\>)?" with Start and Cancel. Cancel in either changes nothing.  
 4. Core binary transcribes, builds the subtitles, and adds them as a track to the original file.  
 5. Core binary shows a system popup: "Japanese subtitles added to \<name\>" (or the error message).  
 6. User reopens the video in VLC and picks the Japanese track under Subtitle → Sub Track.
 
-**Extension menu items:** Transcribe · Change API key · Show last status.
+**Kakitori window buttons:** Transcribe · Change API key · Show last status.
 
 ## **Architecture**
 
@@ -67,29 +67,22 @@ Target the VLC 3.0.x Lua extension API only.
 
 **Required functions**
 
-* descriptor(): title "Kakitori", version, author, capabilities \= {"menu"}.  
-* activate(): does nothing (VLC calls it before trigger\_menu). trigger\_menu(Transcribe) with no saved key opens the key dialog first, then shows the confirmation dialog after Save.  
-* menu() returns {"Transcribe", "Change API key", "Show last status"}; trigger\_menu(id) dispatches.  
-* deactivate() and close(): close any open dialog.
+* descriptor(): title "Kakitori", version, author, capabilities \= {} (no menu: VLC 3.0.24 on macOS never showed an extension's submenu, found while testing).  
+* activate(): opens the Kakitori window with Choose video…, Change API key and Show last status. Choose video… with no saved key opens the key dialog first, then goes on after Save.  
+* Every path ends by closing its window and calling vlc.deactivate(), so the next click on Kakitori opens the window again. close() (the user closed a window) deactivates too; deactivate() closes any open dialog.  
+* Nothing runs at the top level except definitions: when VLC scans the file, the standard libraries aren't loaded.
 
 **API key dialog**
 
 * vlc.dialog("Kakitori – Setup") with a label, add\_password() field, and Save button.  
 * Save writes apiKey to config.json (see Config). Empty input → inline error label, no write.
 
-**Target selection**
+**Choose video…** (settled while testing: replaces picking the most recently added playlist item, at the user's request. VLC extensions can't show a file picker or accept dropped files, so the core shows the picker; that also keeps Japanese paths out of Lua on Windows.)
 
-* Rule: the most recently added playlist item that is a local file ending in .mp4, .m4v or .mov (case-insensitive). Items with any other extension are skipped, even if newer.  
-* Convert its URI to a path with vlc.strings.make\_path().  
-* No match → dialog "Add an MP4, M4V or MOV video to the playlist first."  
-* Lua cannot read the UI's highlighted item. This rule is the workaround.
-
-**Launch**
-
-* If a job.json is still there and its createdAt is more than 60 s old, the core never picked it up (see "Core never starts" in Error handling): delete it, show that error's message, and stop.  
-* Show a confirmation dialog: "Transcribe \<name\> (\<duration\>)?" with Start and Cancel; duration comes from the playlist item, or "(length unknown)" when VLC doesn't know it yet. Cancel writes nothing. On Start, write job.json (UTF-8): { id, inputPath, createdAt }.  
-* Launch the core binary with no arguments (see Platform specifics for exact commands).  
-* Show vlc.osd.message("Transcribing…") and return immediately. Never block on the process.
+* If a job.json is still there and its createdAt is more than 60 s old, the core never picked it up (see "Core never starts" in Error handling): delete it, show that error's message, and stop. If one under 60 s old is there, show "Kakitori is still starting the last transcription. Try again in a moment." and never overwrite it.  
+* Write job.json (UTF-8): { id, createdAt }.  
+* Launch the core binary with no arguments (see Platform specifics for exact commands), close the window and return immediately. Never block on the process.  
+* The core shows the file picker and the confirmation "Transcribe \<name\> (\<duration\>)?" (duration from ffprobe), after the checks that cost nothing (file type, audio, already subtitled) and before anything is uploaded.
 
 **Show last status:** if a job.json older than 60 s is still there, show the "Core never starts" message. Otherwise read status.json and display state, file, and message in a dialog.
 
@@ -130,7 +123,7 @@ All state lives in \<userdatadir\>/kakitori/, where \<userdatadir\> \= vlc.confi
 | File | Written by | Contents |
 | :---- | :---- | :---- |
 | config.json | Lua | apiKey |
-| job.json | Lua | id, inputPath, createdAt |
+| job.json | Lua | id, createdAt (the core asks for the Video with the file picker) |
 | status.json | Core | id (from job.json), state (extracting, transcribing, muxing, waiting-for-unlock, done, error), inputPath, message, updatedAt |
 | log.txt | Core | Append-only run log; never contains the API key |
 | bin/ | Installer | kakitori(.exe), ffmpeg(.exe), ffprobe(.exe) |
@@ -174,7 +167,7 @@ Every failure in the core sets status.json to error with a one-line human messag
 | No answer within 15 minutes | Core (request timeout) | "ElevenLabs took too long. Try again later." No retry: ElevenLabs may still finish and bill the attempt |
 | Popup fails to show | Core (non-zero exit from osascript / PowerShell) | Log it; result still available via Show last status |
 | No audio stream | Core (ffprobe) | "No audio track found." |
-| Unsupported container (e.g. AVI) | Lua skips these during target selection; Core checks again for CLI use (extension check during validation, before extraction) | "Subtitles can't be added to this file type." |
+| Unsupported container (e.g. AVI) | The file picker offers only MP4, M4V and MOV; Core checks again for CLI use (extension check during validation, before extraction) | "Subtitles can't be added to this file type." |
 | File exceeds API size/duration limit | Core (pre-check) | State the limit; no upload |
 | File already has our subtitle track | Core (jpn subtitle track labelled Japanese) | Skip transcription; popup says "Japanese subtitles are already in \<name\>" |
 | Video still locked after 2 minutes | Core (rename fails) | Keep the Pending copy; "Close the video in VLC, then click Transcribe again." |
@@ -212,7 +205,7 @@ Release zip contents: kakitori.lua, bin/ (core \+ ffmpeg \+ ffprobe), README. Ea
 
 5\. Re-running the command upgrades in place and never touches config.json, so the saved API key survives.
 
-6\. Print "Done. Restart VLC, then View → Kakitori → Transcribe." (macOS: VLC → Extensions → Kakitori → Transcribe).
+6\. Print "Done. Restart VLC, then click View → Kakitori." (macOS: VLC → Extensions → Kakitori).
 
 7\. Uninstall is a separate one-liner (uninstall.ps1 / uninstall.sh), because irm | iex and curl | sh make passing flags awkward. Windows (PowerShell): irm https\://github.com/\<owner\>/kakitori-vlc/releases/latest/download/uninstall.ps1 | iex. macOS (Terminal): curl \-fsSL https\://github.com/\<owner\>/kakitori-vlc/releases/latest/download/uninstall.sh | sh. It stops any running kakitori job, then deletes kakitori.lua and the whole kakitori folder (bin, config.json with the API key, status, log), and prints "Uninstalled. Restart VLC." Subtitle tracks already added to videos stay in those files.
 

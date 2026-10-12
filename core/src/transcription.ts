@@ -15,7 +15,8 @@ import { log, writeStatus, type State } from "./state.ts";
 import { swapIn } from "./swap.ts";
 import { hasSubtitleTrack, inspect, japaneseAudioIndex, streamsOfType, type VideoInfo } from "./video.ts";
 
-export type TranscriptionRequest = { id: string; videoPath: string };
+// videoPath null: the user picks the Video in the file picker, then confirms it.
+export type TranscriptionRequest = { id: string; videoPath: string | null };
 
 // Everything outside the core that a Transcription touches.
 export type World = {
@@ -26,9 +27,13 @@ export type World = {
   fetch: Fetch;
   popup: (message: string) => Promise<void>;
   wait: (ms: number) => Promise<void>;
+  // The system file picker; null when the user cancels.
+  chooseVideo: () => Promise<string | null>;
+  // A Start / Cancel question; true for Start.
+  confirm: (question: string) => Promise<boolean>;
 };
 
-export type Outcome = { kind: "done" | "already-subtitled" | "error"; message: string };
+export type Outcome = { kind: "done" | "already-subtitled" | "cancelled" | "error"; message: string };
 
 type ReportState = (state: State) => Promise<void>;
 
@@ -37,11 +42,11 @@ const MAX_SECONDS = 10 * 60 * 60;
 const MAX_UPLOAD_BYTES = 3 * 1024 ** 3;
 
 export async function runTranscription(request: TranscriptionRequest, world: World): Promise<Outcome> {
-  const videoPath = request.videoPath;
+  let videoPath = request.videoPath ?? "";
   const status = (state: State, message = "") =>
     writeStatus(world.stateDir, { id: request.id, state, inputPath: videoPath, message });
 
-  await log(world.stateDir, `[${request.id}] start ${videoPath}`);
+  await log(world.stateDir, `[${request.id}] start ${request.videoPath ?? "(file picker)"}`);
   if (!(await acquireLock(world.stateDir))) {
     // The running Transcription owns status.json, so it is left alone.
     const outcome: Outcome = { kind: "error", message: "A transcription is already running." };
@@ -53,7 +58,14 @@ export async function runTranscription(request: TranscriptionRequest, world: Wor
   const tempDir = await mkdtemp(join(tmpdir(), "kakitori-"));
   let outcome: Outcome;
   try {
-    outcome = await transcribeVideo(videoPath, world, tempDir, status);
+    if (request.videoPath === null) {
+      const chosen = await world.chooseVideo();
+      if (chosen) await log(world.stateDir, `[${request.id}] chose ${chosen}`);
+      videoPath = chosen ?? "";
+    }
+    outcome = videoPath
+      ? await transcribeVideo(videoPath, world, tempDir, status, request.videoPath === null)
+      : { kind: "cancelled", message: "" };
   } catch (error) {
     await log(world.stateDir, `[${request.id}] failed: ${describe(error)}`);
     const message = error instanceof Refusal ? error.message : "Something went wrong. See the log for details.";
@@ -61,13 +73,14 @@ export async function runTranscription(request: TranscriptionRequest, world: Wor
   }
   try {
     await rm(tempDir, { recursive: true, force: true });
-    await status(outcome.kind === "error" ? "error" : "done", outcome.message);
+    // A cancelled Transcription leaves the last status as it was.
+    if (outcome.kind !== "cancelled") await status(outcome.kind === "error" ? "error" : "done", outcome.message);
   } finally {
     await releaseLock(world.stateDir);
   }
-  await log(world.stateDir, `[${request.id}] ${outcome.kind}: ${outcome.message}`);
+  await log(world.stateDir, `[${request.id}] ${outcome.kind}${outcome.message ? `: ${outcome.message}` : ""}`);
   // Last of all: a popup nobody clicks must not hold anything up.
-  await showPopup(world, request.id, outcome.message);
+  if (outcome.kind !== "cancelled") await showPopup(world, request.id, outcome.message);
   return outcome;
 }
 
@@ -90,6 +103,7 @@ async function transcribeVideo(
   world: World,
   tempDir: string,
   status: ReportState,
+  askFirst: boolean,
 ): Promise<Outcome> {
   const name = basename(videoPath);
   if (!existsSync(videoPath)) throw new Refusal("The video file can't be found.");
@@ -100,6 +114,10 @@ async function transcribeVideo(
   if (streamsOfType(video, "audio").length === 0) throw new Refusal("No audio track found.");
   if (hasSubtitleTrack(video)) {
     return { kind: "already-subtitled", message: `Japanese subtitles are already in ${name}` };
+  }
+  // Nothing is uploaded or billed before the user has seen the name and length.
+  if (askFirst && !(await world.confirm(`Transcribe ${name} (${formatLength(video.duration)})?`))) {
+    return { kind: "cancelled", message: "" };
   }
 
   // Before the free-space check: swapping a Pending copy in needs no new
@@ -179,4 +197,13 @@ async function checkFreeSpace(videoPath: string) {
 function workingCopyPath(videoPath: string) {
   const ext = extname(videoPath);
   return join(dirname(videoPath), `${basename(videoPath, ext)}.kakitori.tmp${ext}`);
+}
+
+// 0:03, 12:05, 1:02:05
+function formatLength(seconds: number) {
+  const total = Math.round(seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor(total / 60) % 60;
+  const ss = String(total % 60).padStart(2, "0");
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 }

@@ -1,6 +1,6 @@
 # Kakitori for VLC
 
-Kakitori adds Japanese subtitles to your own Japanese videos, right from VLC. Queue an MP4, M4V or MOV, click **Transcribe**, and keep watching. Kakitori sends the video's audio to [ElevenLabs](https://elevenlabs.io) Scribe v2, builds Japanese subtitles from the result, and adds them as a subtitle track **inside the same video file**. A popup tells you when it's done.
+Kakitori adds Japanese subtitles to your own Japanese videos, right from VLC. Open Kakitori from VLC's Extensions menu, choose an MP4, M4V or MOV, click **Start**, and keep watching. Kakitori sends the video's audio to [ElevenLabs](https://elevenlabs.io) Scribe v2, builds Japanese subtitles from the result, and adds them as a subtitle track **inside the same video file**. A popup tells you when it's done.
 
 The subtitles then show up in VLC (Subtitle → Sub Track → Japanese), QuickTime, the Apple TV app and Films & TV, and they travel with the file wherever you copy it.
 
@@ -51,15 +51,15 @@ Kakitori's programs aren't signed by Apple or Microsoft.
 
 ## Use
 
-1. Add a video to VLC's playlist **without playing it**: drag it in, or use Media → Open with **Enqueue**.
-2. Click **View → Kakitori → Transcribe** (macOS: **VLC → Extensions → Kakitori → Transcribe**).
-3. The first time, paste your ElevenLabs API key and click **Save**.
+1. Click **View → Kakitori** (macOS: **VLC → Extensions → Kakitori**). The Kakitori window opens.
+2. Click **Choose video…**. The first time, paste your ElevenLabs API key and click **Save** first.
+3. In the Open window, pick an MP4, M4V or MOV. On a Mac you can also drag the video from Finder into the Open window.
 4. Check the file name and length, then click **Start**. VLC stays usable while Kakitori works.
-5. When the popup says "Japanese subtitles added to …", reopen the video and pick the Japanese track under **Subtitle → Sub Track**.
+5. When the popup says "Japanese subtitles added to …", open the video and pick the Japanese track under **Subtitle → Sub Track**.
 
-Kakitori always takes the **most recently added** MP4, M4V or MOV in the playlist. Other file types are skipped.
+If the video is playing in VLC on Windows, see [If the video is open in VLC](#if-the-video-is-open-in-vlc-windows).
 
-Other menu items:
+The Kakitori window also has:
 
 - **Change API key**: replace a rejected or rotated key.
 - **Show last status**: what Kakitori is doing now, or how the last transcription ended.
@@ -79,7 +79,7 @@ Windows doesn't let Kakitori replace a video that VLC has open. Kakitori waits u
 | ElevenLabs had a problem. Try again later. | ElevenLabs' servers failed 4 times in a row. |
 | ElevenLabs took too long. Try again later. | No answer within 15 minutes. This attempt may still be billed. |
 | No audio track found. | The video has no sound to transcribe. |
-| The video file can't be found. | It was moved, renamed or deleted after you queued it. Queue it again. |
+| The video file can't be found. | It was moved, renamed or deleted. Choose it again. |
 | No API key saved. Use Change API key. | Save your key with **Change API key**. |
 | Couldn't add the subtitles to this file. | ffmpeg couldn't write a complete copy. Your video is untouched; details are in `log.txt`. |
 | Something went wrong. See the log for details. | Unexpected error; your video is untouched. Details are in `log.txt`. |

@@ -1,7 +1,8 @@
 // kakitori, the core program.
 //
-//   kakitori          runs the Transcription the extension wrote to job.json
-//   kakitori <video>  transcribes one Video from a terminal
+//   kakitori          runs the Transcription the extension asked for in
+//                     job.json: the user picks the Video in the file picker
+//   kakitori <video>  transcribes one Video from a terminal, without asking
 //
 // Installed layout: <state folder>/bin/kakitori next to ffmpeg and ffprobe,
 // where the state folder is VLC's user data folder plus "kakitori".
@@ -10,7 +11,7 @@ import { existsSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { showPopup } from "./popup.ts";
+import { chooseVideo, confirm, showPopup } from "./dialogs.ts";
 import { log } from "./state.ts";
 import { runTranscription, type TranscriptionRequest, type World } from "./transcription.ts";
 
@@ -34,8 +35,8 @@ function tool(name: string) {
   return existsSync(vendored) ? vendored : name;
 }
 
-// The extension's request, in job.json. It is deleted as soon as it is read,
-// so a second launch with nothing waiting exits silently.
+// The extension's request, in job.json: { id, createdAt }. It is deleted as
+// soon as it is read, so a second launch with nothing waiting exits silently.
 async function takeRequest(dir: string): Promise<TranscriptionRequest | null> {
   const path = join(dir, "job.json");
   const file = Bun.file(path);
@@ -44,8 +45,7 @@ async function takeRequest(dir: string): Promise<TranscriptionRequest | null> {
   await rm(path, { force: true });
   try {
     const parsed = JSON.parse(text.replace(/^\uFEFF/, ""));
-    if (typeof parsed.inputPath !== "string" || !parsed.inputPath) throw new Error("no inputPath");
-    return { id: String(parsed.id ?? crypto.randomUUID()), videoPath: parsed.inputPath };
+    return { id: String(parsed.id ?? crypto.randomUUID()), videoPath: null };
   } catch (error) {
     await log(dir, `ignoring unreadable job.json: ${error}`);
     return null;
@@ -69,6 +69,8 @@ const world: World = {
   fetch: (url, init) => fetch(url, init),
   popup: cliVideo ? async () => {} : showPopup,
   wait: (ms) => Bun.sleep(ms),
+  chooseVideo,
+  confirm,
 };
 
 const outcome = await runTranscription(request, world);

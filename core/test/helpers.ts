@@ -140,7 +140,8 @@ export function timeoutError() {
   return new DOMException("The operation timed out.", "TimeoutError");
 }
 
-export type TestWorld = World & { popups: string[]; waits: number[] };
+// confirmations records each "Transcribe …?" question; answer sets the reply.
+export type TestWorld = World & { popups: string[]; waits: number[]; confirmations: string[]; answer: boolean };
 
 export async function makeWorld(fetch: Fetch, apiKey = "test-key"): Promise<TestWorld> {
   const stateDir = await tempDir();
@@ -148,7 +149,8 @@ export async function makeWorld(fetch: Fetch, apiKey = "test-key"): Promise<Test
   await Bun.write(join(stateDir, "config.json"), JSON.stringify({ apiKey }));
   const popups: string[] = [];
   const waits: number[] = [];
-  return {
+  const confirmations: string[] = [];
+  const world: TestWorld = {
     stateDir,
     ffmpeg: tools.ffmpeg,
     ffprobe: tools.ffprobe,
@@ -160,9 +162,19 @@ export async function makeWorld(fetch: Fetch, apiKey = "test-key"): Promise<Test
     wait: async (ms) => {
       waits.push(ms);
     },
+    chooseVideo: async () => {
+      throw new Error("this test didn't expect the file picker");
+    },
+    confirm: async (question) => {
+      confirmations.push(question);
+      return world.answer;
+    },
     popups,
     waits,
+    confirmations,
+    answer: true,
   };
+  return world;
 }
 
 export async function readStatus(world: World) {

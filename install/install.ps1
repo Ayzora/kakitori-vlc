@@ -61,7 +61,7 @@
     Get-ChildItem -Path $bin | Unblock-File
     # config.json (the saved API key) is never touched.
 
-    Write-Host 'Done. Restart VLC, then View > Kakitori > Transcribe.'
+    Write-Host 'Done. Restart VLC, then click View > Kakitori.'
   } finally {
     Remove-Item -Recurse -Force -Path $work -ErrorAction SilentlyContinue
   }

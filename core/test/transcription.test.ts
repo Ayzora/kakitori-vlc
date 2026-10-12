@@ -615,3 +615,91 @@ describe("the API key", () => {
   });
 });
 
+describe("choosing the Video in the file picker", () => {
+  test("asks to confirm the name and length, then transcribes", async () => {
+    const dir = await tempDir();
+    const video = await makeVideo(dir, "授業.mp4", { seconds: 3 });
+    const elevenLabs = await fakeElevenLabs(wordsReply());
+    const world = await makeWorld(elevenLabs.fetch);
+    world.chooseVideo = async () => video;
+
+    const outcome = await runTranscription({ id: "t1", videoPath: null }, world);
+
+    expect(world.confirmations).toEqual(["Transcribe 授業.mp4 (0:03)?"]);
+    expect(outcome).toEqual({ kind: "done", message: "Japanese subtitles added to 授業.mp4" });
+    expect(await readStatus(world)).toMatchObject({ state: "done", inputPath: video });
+    expect(await subtitleText(video, 0)).toBe(WORDS_SRT);
+  });
+
+  test("cancelling the picker changes nothing and shows no popup", async () => {
+    const elevenLabs = await fakeElevenLabs(wordsReply());
+    const world = await makeWorld(elevenLabs.fetch);
+    world.chooseVideo = async () => null;
+
+    const outcome = await runTranscription({ id: "t1", videoPath: null }, world);
+
+    expect(outcome.kind).toBe("cancelled");
+    expect(world.popups).toEqual([]);
+    expect(existsSync(join(world.stateDir, "status.json"))).toBe(false);
+    expect(existsSync(join(world.stateDir, "kakitori.lock"))).toBe(false);
+    expect(elevenLabs.calls).toHaveLength(0);
+  });
+
+  test("answering Cancel to the confirmation uploads nothing and leaves the Video alone", async () => {
+    const dir = await tempDir();
+    const video = await makeVideo(dir, "lesson.mp4");
+    const bytes = await Bun.file(video).bytes();
+    const elevenLabs = await fakeElevenLabs(wordsReply());
+    const world = await makeWorld(elevenLabs.fetch);
+    world.chooseVideo = async () => video;
+    world.answer = false;
+
+    const outcome = await runTranscription({ id: "t1", videoPath: null }, world);
+
+    expect(outcome.kind).toBe("cancelled");
+    expect(elevenLabs.calls).toHaveLength(0);
+    expect(world.popups).toEqual([]);
+    expect(existsSync(join(world.stateDir, "status.json"))).toBe(false);
+    expect(await Bun.file(video).bytes()).toEqual(bytes);
+  });
+
+  test("a Video that already has a Subtitle track isn't offered for transcription", async () => {
+    const dir = await tempDir();
+    const video = await makeVideo(dir, "lesson.mp4");
+    const elevenLabs = await fakeElevenLabs(wordsReply());
+    await runTranscription({ id: "t0", videoPath: video }, await makeWorld(elevenLabs.fetch));
+    const world = await makeWorld(elevenLabs.fetch);
+    world.chooseVideo = async () => video;
+
+    const outcome = await runTranscription({ id: "t1", videoPath: null }, world);
+
+    expect(world.confirmations).toEqual([]);
+    expect(outcome).toEqual({ kind: "already-subtitled", message: "Japanese subtitles are already in lesson.mp4" });
+  });
+
+  test("while a Transcription is running, the picker doesn't open", async () => {
+    const world = await makeWorld((await fakeElevenLabs(wordsReply())).fetch);
+    await Bun.write(join(world.stateDir, "kakitori.lock"), String(process.pid));
+    let opened = false;
+    world.chooseVideo = async () => {
+      opened = true;
+      return null;
+    };
+
+    const outcome = await runTranscription({ id: "t1", videoPath: null }, world);
+
+    expect(opened).toBe(false);
+    expect(outcome.message).toBe("A transcription is already running.");
+  });
+
+  test("a Video given directly (from a terminal) is not asked about", async () => {
+    const dir = await tempDir();
+    const video = await makeVideo(dir, "lesson.mp4");
+    const world = await makeWorld((await fakeElevenLabs(wordsReply())).fetch);
+
+    await runTranscription({ id: "t1", videoPath: video }, world);
+
+    expect(world.confirmations).toEqual([]);
+  });
+});
+

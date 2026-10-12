@@ -57,4 +57,4 @@ done
 xattr -dr com.apple.quarantine "$STATE/bin" 2>/dev/null || true
 # config.json (the saved API key) is never touched.
 
-echo "Done. Restart VLC, then VLC → Extensions → Kakitori → Transcribe."
+echo "Done. Restart VLC, then click VLC → Extensions → Kakitori."

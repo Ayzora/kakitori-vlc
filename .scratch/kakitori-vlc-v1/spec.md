@@ -8,7 +8,7 @@ People who watch Japanese videos in VLC, often learners, have no Japanese subtit
 
 ## Solution
 
-A VLC 3 extension, installed with one command on Windows or macOS. The user adds a Video to VLC's playlist, clicks View → Kakitori → Transcribe (macOS: VLC → Extensions → Kakitori → Transcribe), confirms the file name and length, and keeps using VLC.
+A VLC 3 extension, installed with one command on Windows or macOS. The user clicks View → Kakitori (macOS: VLC → Extensions → Kakitori), then Choose video… in the Kakitori window, picks the Video in the system file picker, confirms the file name and length, and keeps using VLC.
 
 In the background, Kakitori does four things:
 
@@ -29,7 +29,7 @@ The user reopens the Video and picks the Japanese track under Subtitle → Sub T
 4. As a user, I want the installer to check the download against the release's checksums and stop on a mismatch, so that a corrupted download is never installed.
 5. As a user, I want the installer to create the VLC extensions folder if it's missing, so that a fresh VLC install works.
 6. As a Mac user, I want the installer to make the programs runnable and clear their quarantine flag, so that Gatekeeper doesn't block Kakitori the first time it runs.
-7. As a user, I want the installer to end with the exact next step ("Done. Restart VLC, then View → Kakitori → Transcribe."), so that I know where to find the menu.
+7. As a user, I want the installer to end with the exact next step ("Done. Restart VLC, then click View → Kakitori."), so that I know where to find the menu.
 8. As a returning user, I want re-running the install command to upgrade Kakitori in place, so that updating is the same one command.
 9. As a returning user, I want my saved API key to survive an upgrade, so that I don't have to paste it again.
 10. As a user, I want a one-line uninstall command that stops any running Transcription and removes the extension, the programs, my saved key, the status and the log, so that nothing of Kakitori is left on my machine.
@@ -37,10 +37,10 @@ The user reopens the Video and picks the Japanese track under Subtitle → Sub T
 
 ### API key
 
-12. As a first-time user, I want Transcribe to ask for my ElevenLabs API key when none is saved and then go straight on to the confirmation, so that setup happens in the normal flow.
+12. As a first-time user, I want Choose video… to ask for my ElevenLabs API key when none is saved and then go straight on to the confirmation, so that setup happens in the normal flow.
 13. As a user, I want the key field masked, so that someone looking at my screen can't read it.
 14. As a user, I want an empty key to be refused with an inline message and nothing saved, so that I don't save a blank key by mistake.
-15. As a user, I want a "Change API key" menu item, so that I can replace a rejected or rotated key.
+15. As a user, I want a "Change API key" button in the Kakitori window, so that I can replace a rejected or rotated key.
 16. As a Mac user, I want the saved key file readable only by my account, so that other accounts on the machine can't read it.
 17. As a user, I want my key never to appear in a log, a command line or the process list, so that it can't leak through shared logs or screenshots.
 18. As a user, I want the README to tell me the key is stored in plain text, so that I can decide whether that's acceptable.
@@ -48,13 +48,13 @@ The user reopens the Video and picks the Japanese track under Subtitle → Sub T
 
 ### Choosing the Video
 
-20. As a user, I want Kakitori to pick the most recently added MP4, M4V or MOV in the playlist, so that I don't have to play the Video first. A Lua extension can't read which item is highlighted.
-21. As a user, I want newer playlist items of other types (MKV, AVI, streams) skipped, so that I'm not offered a file that can't work.
-22. As a user, I want "Add an MP4, M4V or MOV video to the playlist first." when nothing matches, so that I know what to do.
+20. As a user, I want to pick the Video in the normal Open window of my system, so that I don't have to add it to VLC's playlist first.
+21. As a user, I want the Open window to offer only MP4, M4V and MOV, so that I'm not offered a file that can't work.
+22. As a Mac user, I want to be able to drag a video from Finder into that Open window, so that picking is quick.
 23. As a user, I want to confirm the file name and length before anything is uploaded, so that I'm never billed for the wrong Video.
-24. As a user, I want the dialog to say "(length unknown)" when VLC hasn't read the length yet, so that confirming still works for Videos I've never played.
-25. As a user, I want Cancel to do nothing at all, so that backing out is always safe.
-26. As a user, I want VLC to stay responsive and show "Transcribing…" right after I click Start, so that I can keep watching while Kakitori works.
+24. As a user, I want a Video that already has a Subtitle track to be reported straight away instead of being offered for transcription, so that I don't confirm something pointless.
+25. As a user, I want Cancel in the Open window or the confirmation to do nothing at all, so that backing out is always safe.
+26. As a user, I want VLC to stay responsive while Kakitori works, so that I can keep watching.
 27. As a user, I want Kakitori to keep working if I quit VLC partway through, so that closing VLC doesn't waste a paid Transcription.
 28. As a user with Japanese file and folder names, I want everything to work with them, so that I don't have to rename my files.
 
@@ -131,7 +131,7 @@ The user reopens the Video and picks the Japanese track under Subtitle → Sub T
 ### File contracts in the state folder
 
 - `config.json`, written by the extension: `{ apiKey }`. On macOS the extension makes it readable only by its owner right after writing.
-- `job.json`, written by the extension in UTF-8: `{ id, inputPath, createdAt }`. `createdAt` is in Unix seconds so Lua can compare it with its own clock. The core deletes it as soon as it has read it.
+- `job.json`, written by the extension in UTF-8: `{ id, createdAt }`. `createdAt` is in Unix seconds so Lua can compare it with its own clock. The core deletes it as soon as it has read it.
 - `status.json`, written only by the core: `{ id, state, inputPath, message, updatedAt }`.
   - `state` is one of `extracting`, `transcribing`, `muxing`, `waiting-for-unlock`, `done`, `error`.
   - The core writes it at every stage change.
@@ -142,13 +142,11 @@ The user reopens the Video and picks the Japanese track under Subtitle → Sub T
 
 ### Lua extension
 
-- **Menu:** Transcribe · Change API key · Show last status. Activating the extension does nothing by itself; the menu items do the work. Deactivating or closing it closes any open dialog.
-- **Key dialog:** a masked field and a Save button. An empty value shows an inline error and saves nothing. Clicking Transcribe with no key saved opens this dialog first, then goes on to the confirmation after Save.
-- **Picking the target:** the most recently added playlist item that is a local file ending in `.mp4`, `.m4v` or `.mov` (any letter case). Items of any other type are skipped, even if newer. The item's address is turned into a file path with VLC's path helper.
+- **The Kakitori window:** clicking Kakitori in VLC's Extensions menu activates the extension, which opens a window with three buttons: Transcribe · Change API key · Show last status. Every path ends by closing its window and deactivating the extension, so the next click opens the window again; closing a window with its close button does the same. (Settled while testing in VLC 3.0.24 on macOS: VLC never showed an extension's own submenu there, so the extension has no menu capability.) Changing the key ends with "API key saved."
+- **Key dialog:** a masked field and a Save button. An empty value shows an inline error and saves nothing. Clicking Choose video… with no key saved opens this dialog first, then goes on after Save.
 - **Launch steps:**
-  1. If a `job.json` older than 60 seconds (or unreadable) is still there, the core never started. Delete it, show the "didn't start" message, and stop. If one younger than 60 seconds is there, the core is still starting: show "Kakitori is still starting the last transcription. Try again in a moment." and never overwrite it (checked again on Start).
-  2. Show the confirmation "Transcribe \<name\> (\<duration\>)?", with "(length unknown)" as the fallback, and the buttons Start and Cancel.
-  3. On Start, write `job.json`, start the core detached (Windows: `start "" /b`; macOS: in the background with its output discarded), show the on-screen message "Transcribing…", and return at once.
+  1. If a `job.json` older than 60 seconds (or unreadable) is still there, the core never started. Delete it, show the "didn't start" message, and stop. If one younger than 60 seconds is there, the core is still starting: show "Kakitori is still starting the last transcription. Try again in a moment." and never overwrite it (checked when Choose video… is clicked).
+  2. Write `job.json`, start the core detached (Windows: `start "" /b`; macOS: in the background with its output discarded), close the Kakitori window and return at once. The core shows the file picker and the confirmation. (Settled while testing: picking from VLC's playlist was replaced by the system file picker, at the user's request. VLC extensions can't show a picker or accept dropped files, and having the core show it keeps Japanese paths safe on Windows.)
 - **Show last status:** show the "didn't start" message if a `job.json` older than 60 seconds is still there. Otherwise show state, file and message from `status.json`.
 
 ### Core: modules
@@ -224,7 +222,6 @@ Modules behind the runner:
 | Not enough space | "Not enough free space next to the Video." |
 | Already running | "A transcription is already running." |
 | Core never started (Lua) | "Kakitori didn't start. Your antivirus or macOS security may have blocked it. See the README." |
-| No target (Lua) | "Add an MP4, M4V or MOV video to the playlist first." |
 | Request still starting (Lua) | "Kakitori is still starting the last transcription. Try again in a moment." |
 | Video missing | "The video file can't be found." |
 | No key saved | "No API key saved. Use Change API key." |

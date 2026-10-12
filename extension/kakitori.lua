@@ -1,17 +1,24 @@
 --[[
 Kakitori: adds Japanese subtitles, transcribed by ElevenLabs, as a track
-inside a queued MP4, M4V or MOV video.
+inside an MP4, M4V or MOV video.
 
-This extension only starts the work. It writes job.json into the state folder
-(VLC's user data folder plus "kakitori") and launches the core program from
-its bin folder with no arguments, then returns at once. The core reports back
-with a system popup and status.json. See docs/adr/0002-job-file-handoff.md.
+This extension only starts the work. "Choose video…" writes job.json into the
+state folder (VLC's user data folder plus "kakitori") and launches the core
+program from its bin folder with no arguments, then returns at once. The core
+shows the file picker and the Start / Cancel question, and reports back with
+a system popup and status.json. See docs/adr/0002-job-file-handoff.md.
 
 Targets the VLC 3.0.x Lua extension API. Lua 5.1 compatible.
+
+Nothing may run at the top level except definitions: when VLC scans the file
+for its menu, the standard libraries (math, os, io, string...) aren't loaded.
+
+Clicking Kakitori in VLC's Extensions menu activates the extension, which
+opens the Kakitori window. Every path through it ends in finish(), which
+deactivates the extension again, so the next click opens the window again.
+VLC 3 on macOS never shows an extension's own submenu, so there is none.
 --]]
 
-local MENU = { "Transcribe", "Change API key", "Show last status" }
-local SUPPORTED = { mp4 = true, m4v = true, mov = true }
 local NOT_STARTED = "Kakitori didn't start. Your antivirus or macOS security may have blocked it. See the README."
 local STATE_NAMES = {
   extracting = "Extracting the audio",
@@ -31,37 +38,24 @@ function descriptor()
     title = "Kakitori",
     version = "1.0.0",
     author = "Kakitori contributors",
-    shortdesc = "Japanese subtitles for a queued video",
-    description = "Transcribes the most recently queued MP4, M4V or MOV with ElevenLabs "
+    shortdesc = "Japanese subtitles inside your videos",
+    description = "Transcribes an MP4, M4V or MOV you choose with ElevenLabs "
       .. "and adds Japanese subtitles as a track inside the same file.",
-    capabilities = { "menu" },
+    capabilities = {},
   }
 end
 
--- VLC calls this before trigger_menu; the menu items do the work.
 function activate()
+  show_home()
 end
 
 function deactivate()
   close_dialog()
 end
 
+-- The user closed a Kakitori window.
 function close()
-  close_dialog()
-end
-
-function menu()
-  return MENU
-end
-
-function trigger_menu(id)
-  if id == 1 then
-    transcribe()
-  elseif id == 2 then
-    show_key_dialog(nil)
-  elseif id == 3 then
-    show_status()
-  end
+  vlc.deactivate()
 end
 
 -- Paths ---------------------------------------------------------------------
@@ -252,19 +246,45 @@ function close_dialog()
   end
 end
 
+-- Window size. VLC on Windows honours a minimum width and height per widget;
+-- VLC on macOS only fits a window to its contents. So each window gets both:
+-- minimum sizes, plus a blank row on top and a wide blank row at the bottom.
+local WINDOW_WIDTH = 520
+local ROW_HEIGHT = 28
+
+-- Opens a new window; its content goes in rows 2 and up.
+local function open_window(title)
+  close_dialog()
+  dialog = vlc.dialog(title)
+  dialog:add_label("\194\160", 1, 1, 2, 1, WINDOW_WIDTH, ROW_HEIGHT)
+  return dialog
+end
+
+-- Adds the wide blank row after the content, then shows the window.
+local function show_window(row)
+  -- No-break spaces, built here: the string library isn't loaded when VLC scans the file.
+  dialog:add_label(string.rep("\194\160", 110), 1, row, 2, 1, WINDOW_WIDTH, ROW_HEIGHT)
+  dialog:show()
+end
+
+-- Ends what the click started: closes the window and deactivates.
+function finish()
+  close_dialog()
+  vlc.deactivate()
+end
+
 -- Labels are rich text, so names are escaped and lines joined with <br>.
 local function html(s)
   return (tostring(s):gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"))
 end
 
 local function show_message(lines)
-  close_dialog()
-  dialog = vlc.dialog("Kakitori")
+  open_window("Kakitori")
   local escaped = {}
   for i, line in ipairs(lines) do escaped[i] = html(line) end
-  dialog:add_label(table.concat(escaped, "<br>"), 1, 1, 2, 1)
-  dialog:add_button("OK", close_dialog, 2, 2, 1, 1)
-  dialog:show()
+  dialog:add_label(table.concat(escaped, "<br>"), 1, 2, 2, 1, WINDOW_WIDTH, ROW_HEIGHT * (#lines + 1))
+  dialog:add_button("OK", finish, 2, 3, 1, 1)
+  show_window(4)
 end
 
 -- API key -------------------------------------------------------------------
@@ -288,11 +308,10 @@ local function save_key(key)
 end
 
 function show_key_dialog(after_save)
-  close_dialog()
-  dialog = vlc.dialog("Kakitori – Setup")
-  dialog:add_label("Paste your ElevenLabs API key. It is saved on this computer in plain text.", 1, 1, 2, 1)
-  local field = dialog:add_password("", 1, 2, 2, 1)
-  local problem = dialog:add_label("", 1, 3, 2, 1)
+  open_window("Kakitori – Setup")
+  dialog:add_label("Paste your ElevenLabs API key. It is saved on this computer in plain text.", 1, 2, 2, 1, WINDOW_WIDTH, ROW_HEIGHT)
+  local field = dialog:add_password("", 1, 3, 2, 1, WINDOW_WIDTH, ROW_HEIGHT)
+  local problem = dialog:add_label("", 1, 4, 2, 1, WINDOW_WIDTH, ROW_HEIGHT)
   dialog:add_button("Save", function()
     local key = (field:get_text() or ""):match("^%s*(.-)%s*$")
     if key == "" then
@@ -304,57 +323,10 @@ function show_key_dialog(after_save)
       problem:set_text(html("Couldn't save the key: " .. tostring(err)))
       return
     end
-    close_dialog()
-    if after_save then after_save() end
-  end, 1, 4, 1, 1)
-  dialog:add_button("Cancel", close_dialog, 2, 4, 1, 1)
-  dialog:show()
-end
-
--- Choosing the Video ----------------------------------------------------------
-
--- Lua can't read the item highlighted in the playlist, so the Video is the
--- most recently added local MP4, M4V or MOV. Playlist ids grow as items are
--- added, so the highest id is the newest.
-local function find_video()
-  local best = nil
-  local function visit(node)
-    if type(node) ~= "table" then return end
-    if node.children then
-      for _, child in ipairs(node.children) do visit(child) end
-      return
-    end
-    local uri = node.path
-    if type(uri) == "string" and uri:sub(1, 7) == "file://" then
-      local ext = uri:match("%.(%w+)$")
-      if ext and SUPPORTED[ext:lower()] and (best == nil or node.id > best.id) then
-        best = node
-      end
-    end
-  end
-  visit(vlc.playlist.get("playlist", false))
-  return best
-end
-
-local function uri_to_path(uri)
-  if vlc.strings.make_path then
-    local path = vlc.strings.make_path(uri)
-    if path then return path end
-  end
-  local path = vlc.strings.decode_uri(uri):gsub("^file://", "")
-  if is_windows() then
-    path = path:gsub("^/(%a:)", "%1"):gsub("/", "\\")
-  end
-  return path
-end
-
-local function format_duration(seconds)
-  seconds = tonumber(seconds)
-  if not seconds or seconds <= 0 then return "length unknown" end
-  seconds = math.floor(seconds + 0.5)
-  local h, m, s = math.floor(seconds / 3600), math.floor(seconds / 60) % 60, seconds % 60
-  if h > 0 then return string.format("%d:%02d:%02d", h, m, s) end
-  return string.format("%d:%02d", m, s)
+    after_save()
+  end, 1, 5, 1, 1)
+  dialog:add_button("Cancel", finish, 2, 5, 1, 1)
+  show_window(6)
 end
 
 -- Starting the core -----------------------------------------------------------
@@ -382,30 +354,11 @@ local function launch_core()
   end
 end
 
-local function start(path)
-  -- Never overwrite a request the core hasn't picked up yet.
-  if request_state() == "starting" then
-    show_message({ STILL_STARTING })
-    return
-  end
-  local request = {
-    id = tostring(os.time()) .. "-" .. tostring(math.random(100000, 999999)),
-    inputPath = path,
-    createdAt = os.time(),
-  }
-  local ok, err = write_file(state_file("job.json"), json_encode(request, { "id", "inputPath", "createdAt" }))
-  if not ok then
-    show_message({ "Couldn't start Kakitori: " .. tostring(err), "Run the install command again." })
-    return
-  end
-  launch_core()
-  close_dialog()
-  pcall(vlc.osd.message, "Transcribing…")
-end
-
-function transcribe()
+-- Starts the core, which shows the file picker and the Start / Cancel
+-- question itself, then closes the Kakitori window.
+function choose_video()
   if not load_key() then
-    show_key_dialog(transcribe)
+    show_key_dialog(choose_video)
     return
   end
   local waiting = request_state()
@@ -414,6 +367,7 @@ function transcribe()
     show_message({ NOT_STARTED })
     return
   elseif waiting == "starting" then
+    -- Never overwrite a request the core hasn't picked up yet.
     show_message({ STILL_STARTING })
     return
   end
@@ -421,20 +375,19 @@ function transcribe()
     show_message({ "Kakitori isn't fully installed. Run the install command again." })
     return
   end
-  local item = find_video()
-  if not item then
-    show_message({ "Add an MP4, M4V or MOV video to the playlist first." })
+
+  math.randomseed(os.time())
+  local request = {
+    id = tostring(os.time()) .. "-" .. tostring(math.random(100000, 999999)),
+    createdAt = os.time(),
+  }
+  local ok, err = write_file(state_file("job.json"), json_encode(request, { "id", "createdAt" }))
+  if not ok then
+    show_message({ "Couldn't start Kakitori: " .. tostring(err), "Run the install command again." })
     return
   end
-
-  local path = uri_to_path(item.path)
-  local name = basename(path)
-  close_dialog()
-  dialog = vlc.dialog("Kakitori")
-  dialog:add_label(html("Transcribe " .. name .. " (" .. format_duration(item.duration) .. ")?"), 1, 1, 2, 1)
-  dialog:add_button("Start", function() start(path) end, 1, 2, 1, 1)
-  dialog:add_button("Cancel", close_dialog, 2, 2, 1, 1)
-  dialog:show()
+  launch_core()
+  finish()
 end
 
 -- Status ------------------------------------------------------------------------
@@ -458,4 +411,14 @@ function show_status()
   show_message(lines)
 end
 
-math.randomseed(os.time())
+-- The Kakitori window ------------------------------------------------------------
+
+function show_home()
+  open_window("Kakitori")
+  dialog:add_button("Choose video…", choose_video, 1, 2, 2, 1, WINDOW_WIDTH, ROW_HEIGHT)
+  dialog:add_button("Change API key", function()
+    show_key_dialog(function() show_message({ "API key saved." }) end)
+  end, 1, 3, 2, 1, WINDOW_WIDTH, ROW_HEIGHT)
+  dialog:add_button("Show last status", show_status, 1, 4, 2, 1, WINDOW_WIDTH, ROW_HEIGHT)
+  show_window(5)
+end
