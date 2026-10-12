@@ -1,12 +1,11 @@
 {
   "name": "kakitori",
   "version": "1.0.0",
-  "module": "src/index.ts",
   "type": "module",
   "private": true,
   "scripts": {
-    "typecheck": "bun check",
     "test": "bun test",
+    "check": "bun check",
     "fetch-ffmpeg": "bun scripts/fetch-ffmpeg.ts",
     "build": "bun build --compile --no-compile-autoload-dotenv --no-compile-autoload-bunfig src/index.ts --outfile dist/kakitori"
   },

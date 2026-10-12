@@ -1,3 +1,9 @@
+## Code
+
+The core (`core/`) is TypeScript run with Bun. Use Bun's tools: `bun test`, `bun check` (type check), `bun install`, `bun run <script>`, `bunx`. In code, prefer `Bun.file` / `Bun.write` over `node:fs` reads and writes, and `Bun.spawn` / `Bun.$` for processes.
+
+The extension (`extension/kakitori.lua`) targets VLC 3's Lua 5.1. Nothing may run at its top level except definitions.
+
 ## Agent skills
 
 ### Issue tracker

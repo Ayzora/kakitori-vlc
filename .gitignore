@@ -1,1 +1,8 @@
+node_modules/
 .DS_Store
+
+# build output (bun run build)
+core/dist/
+
+# static ffmpeg for local tests (bun run fetch-ffmpeg)
+core/vendor/

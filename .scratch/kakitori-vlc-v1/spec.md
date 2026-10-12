@@ -327,7 +327,7 @@ Modules behind the runner:
   - A 60-minute Video finishes with no manual steps.
   - Every failure shows its stated message.
   - The key appears in no log, command line or process list.
-- **Sources:** the full design spec ("Kakitori VLC Extension - Spec v1") sits at the repo root. Terms are defined in `CONTEXT.md`. ADR 0001 and ADR 0002 record the two big decisions.
+- **Sources:** the full design spec is `docs/design-spec-v1.md`. Terms are defined in `CONTEXT.md`. ADR 0001 and ADR 0002 record the two big decisions.
 - **Filled in while writing this spec; confirm or change:**
   - `createdAt` is in Unix seconds.
   - The "not enough free space" message wording.
