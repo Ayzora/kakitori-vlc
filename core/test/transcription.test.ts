@@ -1,6 +1,6 @@
 import { $ } from "bun";
 import { describe, expect, test } from "bun:test";
-import { existsSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { chmod, copyFile, rename, rm, stat, utimes } from "node:fs/promises";
 import { join } from "node:path";
 import { runTranscription } from "../src/transcription.ts";
@@ -12,6 +12,7 @@ import {
   makeWorld,
   misbehavingFfmpeg,
   probe,
+  stateRecordingFfmpeg,
   readStatus,
   subtitleText,
   tempDir,
@@ -359,7 +360,7 @@ describe("a Video that already has a Subtitle track", () => {
     const outcome = await runTranscription({ id: "t2", videoPath: video }, world);
 
     const message = "Japanese subtitles are already in lesson.mp4";
-    expect(outcome).toEqual({ kind: "done", message });
+    expect(outcome).toEqual({ kind: "already-subtitled", message });
     expect(elevenLabs.calls).toHaveLength(1);
     expect(world.popups).toEqual([message]);
     expect(await readStatus(world)).toMatchObject({ id: "t2", state: "done", message });
@@ -523,6 +524,25 @@ describe("one Transcription at a time", () => {
     expect(existsSync(join(world.stateDir, "kakitori.lock"))).toBe(false);
   });
 
+  test.skipIf(process.platform === "win32")("status.json moves through each stage in order", async () => {
+    const dir = await tempDir();
+    const video = await makeVideo(dir, "lesson.mp4");
+    const states = join(await tempDir(), "states.log");
+    const elevenLabs = await fakeElevenLabs(() => {
+      appendFileSync(states, `${statusNow().state}\n`);
+      return wordsReply();
+    });
+    const world = await makeWorld(elevenLabs.fetch);
+    const statusNow = () => JSON.parse(readFileSync(join(world.stateDir, "status.json"), "utf8"));
+    world.ffmpeg = await stateRecordingFfmpeg(join(world.stateDir, "status.json"), states);
+    world.popup = async () => appendFileSync(states, `${statusNow().state}\n`);
+
+    await runTranscription({ id: "t1", videoPath: video }, world);
+
+    const seen = (await Bun.file(states).text()).trim().split("\n");
+    expect(seen.filter((state, i) => state !== seen[i - 1])).toEqual(["extracting", "transcribing", "muxing", "done"]);
+  });
+
   test("the final status is written and the lock released before the popup shows", async () => {
     const dir = await tempDir();
     const video = await makeVideo(dir, "lesson.mp4");
@@ -548,7 +568,7 @@ describe("one Transcription at a time", () => {
 });
 
 describe("the log", () => {
-  test("records each run but never the API key", async () => {
+  test("records each Transcription but never the API key", async () => {
     const dir = await tempDir();
     const video = await makeVideo(dir, "lesson.mp4");
     const key = "sk_live_very_secret_123";

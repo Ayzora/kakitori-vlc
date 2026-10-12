@@ -146,7 +146,7 @@ The user reopens the Video and picks the Japanese track under Subtitle → Sub T
 - **Key dialog:** a masked field and a Save button. An empty value shows an inline error and saves nothing. Clicking Transcribe with no key saved opens this dialog first, then goes on to the confirmation after Save.
 - **Picking the target:** the most recently added playlist item that is a local file ending in `.mp4`, `.m4v` or `.mov` (any letter case). Items of any other type are skipped, even if newer. The item's address is turned into a file path with VLC's path helper.
 - **Launch steps:**
-  1. If a `job.json` older than 60 seconds is still there, the core never started. Delete it, show the "didn't start" message, and stop.
+  1. If a `job.json` older than 60 seconds (or unreadable) is still there, the core never started. Delete it, show the "didn't start" message, and stop. If one younger than 60 seconds is there, the core is still starting: show "Kakitori is still starting the last transcription. Try again in a moment." and never overwrite it (checked again on Start).
   2. Show the confirmation "Transcribe \<name\> (\<duration\>)?", with "(length unknown)" as the fallback, and the buttons Start and Cancel.
   3. On Start, write `job.json`, start the core detached (Windows: `start "" /b`; macOS: in the background with its output discarded), show the on-screen message "Transcribing…", and return at once.
 - **Show last status:** show the "didn't start" message if a `job.json` older than 60 seconds is still there. Otherwise show state, file and message from `status.json`.
@@ -161,7 +161,7 @@ The core is organised around one top-level **Transcription runner**. It takes a 
 - the state folder;
 - where ffmpeg and ffprobe live.
 
-It returns the outcome: done, already subtitled, or error with its message. The program entry point only builds the real outside world and hands either `job.json` or a CLI path to the runner. A run with no arguments and no `job.json` exits silently.
+It returns the outcome: done, already subtitled, or error with its message. The program entry point only builds the real outside world and hands either `job.json` or a CLI path to the runner. A run with no arguments and no `job.json` exits silently. A terminal run (`kakitori <video>`) prints the message instead of showing a popup.
 
 Modules behind the runner:
 
@@ -191,14 +191,15 @@ Modules behind the runner:
 - **Swap:**
   - Renames the working copy over the Video. After the rename, it puts back the Video's earlier modified time and, on macOS, its permissions.
   - If the Video is locked, status becomes `waiting-for-unlock` and the rename is retried every 5 seconds for 2 minutes. After that, the working copy stays as a **Pending copy** and the Transcription ends with "Close the video in VLC, then click Transcribe again."
-- **Pending copy detection** (during validation): if `<name>.kakitori.tmp.<ext>` exists next to the Video, it has the Subtitle track, it passes the Check against the Video, and it is newer than the Video, then go straight to the Swap with no ElevenLabs call. Otherwise delete it and transcribe normally.
+- **Pending copy detection** (during validation): if `<name>.kakitori.tmp.<ext>` exists next to the Video, it has the Subtitle track, it passes the Check against the Video, and it is newer than the Video, then go straight to the Swap with no ElevenLabs call. Otherwise delete it and transcribe normally. A Pending copy can't record whether it came from the camera-data retry, so its Check always allows missing data streams.
 - **Validation order:**
   1. The file exists.
   2. Its extension is supported.
   3. It has an audio stream.
-  4. The folder has free space of at least the Video's size.
-  5. A Subtitle track already there means already subtitled: no redo in v1.
-  6. Pending copy detection.
+  4. A Subtitle track already there means already subtitled: no redo in v1.
+  5. Pending copy detection. (Before the space check: swapping a Pending copy in needs no new space, and the Pending copy itself takes some.)
+  6. The folder has free space of at least the Video's size.
+  7. The Video is no longer than ElevenLabs' 10 hours, and (after extraction) the audio is no larger than 3 GB.
 - **Finish order:**
   1. Delete the SRT, the extracted audio, and the working copy (unless it was kept as a Pending copy).
   2. Write the final status.
@@ -224,6 +225,13 @@ Modules behind the runner:
 | Already running | "A transcription is already running." |
 | Core never started (Lua) | "Kakitori didn't start. Your antivirus or macOS security may have blocked it. See the README." |
 | No target (Lua) | "Add an MP4, M4V or MOV video to the playlist first." |
+| Request still starting (Lua) | "Kakitori is still starting the last transcription. Try again in a moment." |
+| Video missing | "The video file can't be found." |
+| No key saved | "No API key saved. Use Change API key." |
+| No connection after retries | "Couldn't reach ElevenLabs. Check your internet connection." |
+| Server errors after retries | "ElevenLabs had a problem. Try again later." |
+| Working copy failed or failed the Check | "Couldn't add the subtitles to this file." |
+| Anything unexpected | "Something went wrong. See the log for details." |
 
 ### Installer, uninstaller, release
 
@@ -234,6 +242,7 @@ Modules behind the runner:
   4. Copy the programs into the state folder's `bin` subfolder (macOS: make them runnable and clear the quarantine flag).
   5. Never touch `config.json`.
   6. Print the next step.
+  - On Windows the installer stops with a message if a Transcription is running, because a running program can't be replaced.
 - **Uninstall scripts:** stop any running core, delete the extension and the whole state folder, then print "Uninstalled. Restart VLC."
 - **Release:** a GitHub Actions workflow runs on tag push.
   - It builds the three targets and fetches static ffmpeg and ffprobe for each.
@@ -261,7 +270,7 @@ Modules behind the runner:
   - **Success:** MP4 with a Japanese file name; MOV; M4V.
   - **Audio:** MOV with uncompressed audio (re-encode fallback); Video with English as the first audio track and Japanese as the second.
   - **Streams kept:** Video that already has a subtitle stream (kept untouched); iPhone clip with data tracks (data-drop retry and popup note).
-  - **Rejected inputs:** Video with no audio; MKV/AVI through the CLI; not enough free space; over ElevenLabs' limit.
+  - **Rejected inputs:** Video with no audio; MKV/AVI through the CLI; a missing Video; no key saved. Not enough free space and ElevenLabs' size and length limits are not covered: they would need a seam into the disk or a 10-hour Video, which isn't worth it for one comparison each.
   - **Already subtitled:** no ElevenLabs call.
   - **Pending copy:** a fresh one is used with no ElevenLabs call; a stale one (older than the Video) is deleted and a full Transcription runs.
   - **ElevenLabs failures:** each one maps to its message; retry counts are 3 for 5xx and connection errors and 0 for timeout and 402/429.

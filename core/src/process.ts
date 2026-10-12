@@ -16,3 +16,6 @@ export async function runProcess(cmd: string[]): Promise<ProcessResult> {
   ]);
   return { code, stdout, stderr };
 }
+
+// Leading ffmpeg options for every call: no prompts, errors only, overwrite.
+export const QUIET_FFMPEG = ["-nostdin", "-hide_banner", "-loglevel", "error", "-y"];

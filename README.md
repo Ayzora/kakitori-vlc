@@ -74,13 +74,19 @@ Windows doesn't let Kakitori replace a video that VLC has open. Kakitori waits u
 | --- | --- |
 | API key rejected. Use Change API key. | Paste a valid key with **Change API key**. |
 | *(ElevenLabs' own text about credits or limits)* | Check your ElevenLabs plan. Kakitori doesn't retry these. |
+| ElevenLabs can't transcribe videos longer than 10 hours. / The audio is larger than ElevenLabs' 3 GB upload limit. | Split the video; nothing was uploaded. |
 | Couldn't reach ElevenLabs. Check your internet connection. | Kakitori already retried 3 times. Try again later. |
 | ElevenLabs had a problem. Try again later. | ElevenLabs' servers failed 4 times in a row. |
 | ElevenLabs took too long. Try again later. | No answer within 15 minutes. This attempt may still be billed. |
 | No audio track found. | The video has no sound to transcribe. |
+| The video file can't be found. | It was moved, renamed or deleted after you queued it. Queue it again. |
+| No API key saved. Use Change API key. | Save your key with **Change API key**. |
+| Couldn't add the subtitles to this file. | ffmpeg couldn't write a complete copy. Your video is untouched; details are in `log.txt`. |
+| Something went wrong. See the log for details. | Unexpected error; your video is untouched. Details are in `log.txt`. |
 | Subtitles can't be added to this file type. | Only MP4, M4V and MOV are supported. |
 | Not enough free space next to the Video. | Kakitori needs free space as large as the video while it works. |
 | A transcription is already running. | Wait for the current one to finish. |
+| Kakitori is still starting the last transcription. … | Wait a few seconds and click Transcribe again. |
 | Close the video in VLC, then click Transcribe again. | See [If the video is open in VLC](#if-the-video-is-open-in-vlc-windows). |
 | Kakitori didn't start. … | See [Security warnings](#security-warnings). |
 

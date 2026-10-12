@@ -313,10 +313,10 @@ end
 
 -- Choosing the Video ----------------------------------------------------------
 
--- Lua can't read the item highlighted in the playlist, so the target is the
+-- Lua can't read the item highlighted in the playlist, so the Video is the
 -- most recently added local MP4, M4V or MOV. Playlist ids grow as items are
 -- added, so the highest id is the newest.
-local function find_target()
+local function find_video()
   local best = nil
   local function visit(node)
     if type(node) ~= "table" then return end
@@ -359,14 +359,19 @@ end
 
 -- Starting the core -----------------------------------------------------------
 
--- A job.json the core never picked up: it deletes the file as soon as it starts.
-local function leftover_job()
+-- Where the last request in job.json stands. The core deletes job.json as
+-- soon as it starts, so one still there after 60 seconds was never picked up.
+-- One the extension can't read is treated as never picked up too.
+local function request_state()
   local path = state_file("job.json")
-  if not file_exists(path) then return false end
-  local job = read_json(path)
-  local created = job and tonumber(job.createdAt)
-  return created == nil or os.time() - created > 60
+  if not file_exists(path) then return "none" end
+  local request = read_json(path)
+  local created = request and tonumber(request.createdAt)
+  if created == nil or os.time() - created > 60 then return "leftover" end
+  return "starting"
 end
+
+local STILL_STARTING = "Kakitori is still starting the last transcription. Try again in a moment."
 
 local function launch_core()
   local bin = core_path()
@@ -378,12 +383,17 @@ local function launch_core()
 end
 
 local function start(path)
-  local job = {
+  -- Never overwrite a request the core hasn't picked up yet.
+  if request_state() == "starting" then
+    show_message({ STILL_STARTING })
+    return
+  end
+  local request = {
     id = tostring(os.time()) .. "-" .. tostring(math.random(100000, 999999)),
     inputPath = path,
     createdAt = os.time(),
   }
-  local ok, err = write_file(state_file("job.json"), json_encode(job, { "id", "inputPath", "createdAt" }))
+  local ok, err = write_file(state_file("job.json"), json_encode(request, { "id", "inputPath", "createdAt" }))
   if not ok then
     show_message({ "Couldn't start Kakitori: " .. tostring(err), "Run the install command again." })
     return
@@ -398,16 +408,20 @@ function transcribe()
     show_key_dialog(transcribe)
     return
   end
-  if leftover_job() then
+  local waiting = request_state()
+  if waiting == "leftover" then
     os.remove(state_file("job.json"))
     show_message({ NOT_STARTED })
+    return
+  elseif waiting == "starting" then
+    show_message({ STILL_STARTING })
     return
   end
   if not file_exists(core_path()) then
     show_message({ "Kakitori isn't fully installed. Run the install command again." })
     return
   end
-  local item = find_target()
+  local item = find_video()
   if not item then
     show_message({ "Add an MP4, M4V or MOV video to the playlist first." })
     return
@@ -426,7 +440,7 @@ end
 -- Status ------------------------------------------------------------------------
 
 function show_status()
-  if leftover_job() then
+  if request_state() == "leftover" then
     show_message({ NOT_STARTED })
     return
   end

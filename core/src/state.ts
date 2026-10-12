@@ -21,7 +21,7 @@ export async function writeStatus(stateDir: string, status: Omit<Status, "update
   await rename(temp, path);
 }
 
-// Append-only run log. Callers never pass the API key.
+// Append-only log of every Transcription. Callers never pass the API key.
 export async function log(stateDir: string, line: string) {
   await appendFile(join(stateDir, "log.txt"), `${new Date().toISOString()} ${line}\n`);
 }

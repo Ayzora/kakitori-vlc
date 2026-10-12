@@ -7,7 +7,7 @@
 // where the state folder is VLC's user data folder plus "kakitori".
 
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { showPopup } from "./popup.ts";
@@ -34,21 +34,18 @@ function tool(name: string) {
   return existsSync(vendored) ? vendored : name;
 }
 
-// The extension's request. It is deleted as soon as it is read, so a second
-// launch with nothing waiting exits silently.
-async function takeJob(dir: string): Promise<TranscriptionRequest | null> {
+// The extension's request, in job.json. It is deleted as soon as it is read,
+// so a second launch with nothing waiting exits silently.
+async function takeRequest(dir: string): Promise<TranscriptionRequest | null> {
   const path = join(dir, "job.json");
-  let text: string;
-  try {
-    text = await readFile(path, "utf8");
-  } catch {
-    return null;
-  }
+  const file = Bun.file(path);
+  if (!(await file.exists())) return null;
+  const text = await file.text();
   await rm(path, { force: true });
   try {
-    const job = JSON.parse(text.replace(/^﻿/, ""));
-    if (typeof job.inputPath !== "string" || !job.inputPath) throw new Error("no inputPath");
-    return { id: String(job.id ?? crypto.randomUUID()), videoPath: job.inputPath };
+    const parsed = JSON.parse(text.replace(/^\uFEFF/, ""));
+    if (typeof parsed.inputPath !== "string" || !parsed.inputPath) throw new Error("no inputPath");
+    return { id: String(parsed.id ?? crypto.randomUUID()), videoPath: parsed.inputPath };
   } catch (error) {
     await log(dir, `ignoring unreadable job.json: ${error}`);
     return null;
@@ -61,7 +58,7 @@ await mkdir(dir, { recursive: true });
 const cliVideo = process.argv[2];
 const request = cliVideo
   ? { id: crypto.randomUUID(), videoPath: resolve(cliVideo) }
-  : await takeJob(dir);
+  : await takeRequest(dir);
 if (!request) process.exit(0);
 
 const world: World = {
@@ -76,4 +73,4 @@ const world: World = {
 
 const outcome = await runTranscription(request, world);
 if (cliVideo) console.log(outcome.message);
-process.exit(outcome.kind === "done" ? 0 : 1);
+process.exit(outcome.kind === "error" ? 1 : 0);

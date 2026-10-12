@@ -6,7 +6,9 @@ import { existsSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Fetch, World } from "../src/transcription.ts";
+import type { Fetch } from "../src/scribe.ts";
+import type { Word } from "../src/srt.ts";
+import type { World } from "../src/transcription.ts";
 
 const vendor = join(import.meta.dir, "..", "vendor", "ffmpeg");
 const exe = process.platform === "win32" ? ".exe" : "";
@@ -90,8 +92,6 @@ export async function subtitleText(path: string, subtitleIndex: number) {
 export async function filesIn(dir: string) {
   return (await readdir(dir)).sort();
 }
-
-export type Word = { text: string; start: number; end: number; type: string };
 
 // 今日はいい天気ですね。 spoken from 0.2 s to 1.6 s.
 export const WORDS: Word[] = [
@@ -199,6 +199,21 @@ done`;
 case "$*" in *kakitori.tmp*) ;; *) exec ${real} "$@";; esac
 ${body}
 exec ${real} "$@"
+`,
+  );
+  await chmod(path, 0o755);
+  return path;
+}
+
+// An ffmpeg that, before each call, appends the state in status.json to a log
+// (shell script, so macOS and Linux only).
+export async function stateRecordingFfmpeg(statusPath: string, logPath: string) {
+  const path = join(await tempDir(), "ffmpeg");
+  await Bun.write(
+    path,
+    `#!/bin/sh
+printf '%s\\n' "$(sed -n 's/.*"state":"\\([^"]*\\)".*/\\1/p' ${JSON.stringify(statusPath)})" >> ${JSON.stringify(logPath)}
+exec ${JSON.stringify(tools.ffmpeg)} "$@"
 `,
   );
   await chmod(path, 0o755);
