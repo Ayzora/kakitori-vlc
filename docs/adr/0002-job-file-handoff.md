@@ -1,0 +1,3 @@
+# The extension hands work to the core through job.json, not arguments
+
+`kakitori.lua` writes the Video's path into a UTF-8 `job.json`, starts the core with no arguments as a detached process, and returns at once. Passing the path as an argument would go through `os.execute` and, on Windows, `cmd.exe`, which mangles Japanese file names into the system code page; and the API key must never appear on a command line or in the process list. Running the core detached keeps VLC responsive, because a VLC 3 Lua extension cannot wait on a process in the background or receive a callback, so the core reports completion itself through its popup and `status.json`.

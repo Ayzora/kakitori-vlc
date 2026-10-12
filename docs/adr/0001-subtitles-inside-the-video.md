@@ -1,0 +1,3 @@
+# Subtitles go inside the Video, not in a .srt next to it
+
+Kakitori adds the Subtitle track inside the Video itself (an ffmpeg remux into a copy, checked with ffprobe, then swapped over the original) instead of writing a `.srt` file beside it like most transcription tools. A sidecar `.srt` is lost when the Video is moved, renamed or shared, leaves an extra file behind, and is not loaded by QuickTime or the Apple TV app; an embedded track travels with the file and shows up in VLC, QuickTime and Films & TV alike. The cost is rewriting the user's own file, so the swap happens only after the check confirms every original stream survived, and v1 is limited to MP4, M4V and MOV, where a mov_text track can be added without re-encoding.
