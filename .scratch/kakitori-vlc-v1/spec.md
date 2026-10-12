@@ -170,7 +170,7 @@ Modules behind the runner:
   - lists streams with their codecs;
   - picks the audio stream: the first one tagged `jpn`, otherwise the first one;
   - reads the duration;
-  - reads the file-level `kakitori=1` tag.
+  - recognises a Kakitori Subtitle track: a `jpn` subtitle stream labelled `Japanese`.
 - **Audio extraction:** copies the chosen audio stream into a temporary `.m4a` in the OS temp folder without re-encoding. If that fails, it re-encodes as mono AAC at 64 kbps.
 - **ElevenLabs client:** reuses the existing script's request code.
   - **Request:** model `scribe_v2`; language `jpn`; word timestamps; no speaker labels; no audio-event tags; a 15-minute timeout. The key comes from Config, not the old `SCRIBE_V2` variable.
@@ -184,19 +184,20 @@ Modules behind the runner:
 - **Muxer:** writes a working copy, `<name>.kakitori.tmp.<ext>`, in the Video's folder.
   - It maps everything from the Video plus the SRT and copies all streams.
   - Only the new subtitle stream is encoded as `mov_text`; existing subtitle and caption streams are never re-encoded.
-  - The new stream gets language `jpn` and handler name `Japanese`. The file gets the tag `kakitori=1`, stored using the MP4 metadata-tags option.
+  - The new stream gets language `jpn` and handler name `Japanese`; that label is also the mark of an already subtitled Video. (Settled during implementation: the planned file-level `kakitori=1` tag needed ffmpeg's metadata-tags option, which hid the title from Apple's players, so it was dropped.)
+  - The Video's container, brand and recording date (`creation_time`, which ffmpeg drops by default) are kept.
   - If the mux fails, it retries once with data streams dropped, and the outcome records that camera data was removed.
 - **Check:** with ffprobe, the working copy must have every stream of the Video with the same codec, plus exactly one new subtitle stream, and a duration within 1 second of the Video's. Only after a data-stream-dropping retry may data streams be missing.
 - **Swap:**
   - Renames the working copy over the Video. After the rename, it puts back the Video's earlier modified time and, on macOS, its permissions.
   - If the Video is locked, status becomes `waiting-for-unlock` and the rename is retried every 5 seconds for 2 minutes. After that, the working copy stays as a **Pending copy** and the Transcription ends with "Close the video in VLC, then click Transcribe again."
-- **Pending copy detection** (during validation): if `<name>.kakitori.tmp.<ext>` exists next to the Video, it carries `kakitori=1`, it passes the Check against the Video, and it is newer than the Video, then go straight to the Swap with no ElevenLabs call. Otherwise delete it and transcribe normally.
+- **Pending copy detection** (during validation): if `<name>.kakitori.tmp.<ext>` exists next to the Video, it has the Subtitle track, it passes the Check against the Video, and it is newer than the Video, then go straight to the Swap with no ElevenLabs call. Otherwise delete it and transcribe normally.
 - **Validation order:**
   1. The file exists.
   2. Its extension is supported.
   3. It has an audio stream.
   4. The folder has free space of at least the Video's size.
-  5. The `kakitori=1` tag means already subtitled: no redo in v1.
+  5. A Subtitle track already there means already subtitled: no redo in v1.
   6. Pending copy detection.
 - **Finish order:**
   1. Delete the SRT, the extracted audio, and the working copy (unless it was kept as a Pending copy).
@@ -295,7 +296,7 @@ Modules behind the runner:
   - **Windows:** Lua's `io.open` works with non-English paths; launching doesn't flash a console window or block VLC.
   - **Core survives a VLC quit.**
   - **Popups:** Japanese names show correctly; the macOS dialog appears in front.
-  - **Mux:** the data-track retry works on iPhone clips; `kakitori=1` survives the mux; the MP4 metadata-tags option doesn't hide title, date or location in QuickTime, Photos or Windows. If it does, mark the Video through the Subtitle track's label instead.
+  - **Mux:** the data-track retry works on iPhone clips; title, date and location still show in QuickTime, Photos and Windows after the mux.
   - **VLC labels:** VLC shows the track as "Japanese".
   - **Windows locks:** how the lock behaves on Windows.
   - **Windows Defender:** whether it flags the Bun-compiled program.

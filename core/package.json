@@ -1,15 +1,22 @@
 {
-  "name": "core",
+  "name": "kakitori",
+  "version": "1.0.0",
   "module": "src/index.ts",
   "type": "module",
   "private": true,
   "scripts": {
-    "typecheck": "bun check"
+    "typecheck": "bun check",
+    "test": "bun test",
+    "fetch-ffmpeg": "bun scripts/fetch-ffmpeg.ts",
+    "build": "bun build --compile --no-compile-autoload-dotenv --no-compile-autoload-bunfig src/index.ts --outfile dist/kakitori"
   },
   "devDependencies": {
     "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^7"
+  },
+  "dependencies": {
+    "budoux": "^0.9.3"
   }
 }

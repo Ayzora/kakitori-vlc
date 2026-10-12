@@ -102,13 +102,13 @@ Invocation: kakitori with no arguments reads \<bin\>/../job.json and deletes it 
 **Pipeline**
 
 1. Load config; ELEVENLABS\_API\_KEY env var overrides apiKey.  
-2. Validate input: file exists, extension is .mp4/.m4v/.mov, has an audio stream (ffprobe), and the folder has free space of at least the file's size (needed for the temp copy). If the file already carries the file-level tag kakitori=1 (written at mux time), skip to step 7 (no redo in v1). If a Pending copy \<name\>.kakitori.tmp.\<ext\> exists next to the Video, it carries kakitori=1, it passes the step 6 check against the Video, and its modified time is newer than the Video's, skip straight to the rename in step 6\. Otherwise delete it (it is stale or incomplete) and continue. The Pending copy file itself is the only record; nothing about it is stored in status.json.  
+2. Validate input: file exists, extension is .mp4/.m4v/.mov, has an audio stream (ffprobe), and the folder has free space of at least the file's size (needed for the temp copy). If the file already has a Kakitori Subtitle track (a jpn subtitle stream labelled Japanese; see Mux command), skip to step 7 (no redo in v1). If a Pending copy \<name\>.kakitori.tmp.\<ext\> exists next to the Video, it has that track, it passes the step 6 check against the Video, and its modified time is newer than the Video's, skip straight to the rename in step 6\. Otherwise delete it (it is stale or incomplete) and continue. The Pending copy file itself is the only record; nothing about it is stored in status.json.  
 3. Extract audio to a temp .m4a by stream copy (ffmpeg \-vn \-map 0:a:\<k\> \-c:a copy), with no re-encoding, so it takes seconds even for long or 4K files. \<k\> is the first audio stream tagged language jpn; if none is tagged jpn, the first audio stream. If the copy fails (e.g. PCM audio in MOV), fall back to re-encoding as mono AAC at 64 kbps.  
 4. Call Scribe v2 (model\_id scribe\_v2) with the extracted audio file, using the existing script's request code with the key from step 1 instead of its SCRIBE\_V2 env var: language\_code jpn, timestamps\_granularity word, diarize false, tag\_audio\_events false; 15-minute request timeout. Retries follow the error table; a timeout is never retried.  
 5. Build SRT from word timestamps using the existing script's cue builder, ported unchanged (see below).  
 6. Mux into a temp file in the same folder (command below). Check it with ffprobe: every stream of the Video is still there with the same codec, plus exactly one new subtitle stream, and the duration is within 1 s of the Video's. If the mux fails, retry once adding \-map \-0:d? (drops data tracks, e.g. iPhone camera data); the check then allows only data streams to be missing, and the success popup adds "Some extra camera data was removed." Then rename it over the Video, and after the rename set the Video's modified time and (macOS) file permissions back to what they were before. Doing this after the rename keeps a Pending copy newer than its Video. If the Video is locked (Windows, e.g. the video is playing in VLC), set status to waiting-for-unlock and retry every 5 s for 2 minutes; if still locked, keep the checked temp file as a Pending copy and end with "Close the video in VLC, then click Transcribe again." The next run reuses it (no new charge). On any failure the Video is left untouched. The SRT is written to the OS temp folder (not next to the video).  
 7. Clean up and report: delete the SRT and the extracted audio; delete the temp copy of the video unless it was kept as a Pending copy (step 6); write the final status.json (done or error); release the lock.  
-8. Last, show the system popup: "Japanese subtitles added to \<name\>" on success; "Japanese subtitles are already in \<name\>" if step 2 found kakitori=1; the one-line error message on failure. Wait for the popup only to log a failure to show it; nothing else runs after it.
+8. Last, show the system popup: "Japanese subtitles added to \<name\>" on success; "Japanese subtitles are already in \<name\>" if step 2 found a Kakitori Subtitle track; the one-line error message on failure. Wait for the popup only to log a failure to show it; nothing else runs after it.
 
 status.json is written at every stage change (extracting, transcribing, muxing, waiting-for-unlock, then done or error), not only at the end.
 
@@ -116,11 +116,11 @@ SRT cue builder: reuse srt logic from the existing script as-is (BudouX phrasing
 
 **Mux command**
 
-ffmpeg \-i in.\<ext\> \-i subs.srt \-map 0 \-map 1 \-c copy \-c:s:\<n\> mov\_text \-metadata:s:s:\<n\> language=jpn \-metadata:s:s:\<n\> handler\_name=Japanese \-metadata kakitori=1 \-movflags use\_metadata\_tags \<name\>.kakitori.tmp.\<ext\>
+ffmpeg \-i in.\<ext\> \-i subs.srt \-map 0 \-map 1 \-c copy \-c:s:\<n\> mov\_text \-metadata:s:s:\<n\> language=jpn \-metadata:s:s:\<n\> handler\_name=Japanese \-metadata creation\_time=\<original\> \-brand \<original major brand\> \-f mp4|mov \<name\>.kakitori.tmp.\<ext\>
 
 * \<n\> \= index of the new subtitle stream (count existing subtitle streams first).  
 * \-c:s:\<n\> mov\_text converts only the new stream. Existing subtitle or caption streams are copied untouched, never re-encoded.  
-* Language tag is always jpn (shows as "Japanese" in VLC). handler\_name=Japanese sets the track label VLC displays; the file-level kakitori=1 tag (stored via \-movflags use\_metadata\_tags) marks files Kakitori has already processed. If the spike shows use\_metadata\_tags hides the title, date or location in QuickTime, Photos or Windows, drop it and mark the Video through the Subtitle track's own label instead.  
+* Language tag is always jpn (shows as "Japanese" in VLC). handler\_name=Japanese sets the track label VLC displays, and a jpn subtitle stream labelled Japanese is also how Kakitori recognises a Video it has already processed. (Settled during implementation: the planned file-level kakitori=1 tag needed \-movflags use\_metadata\_tags, which hid the title from Apple's AVFoundation, so it was dropped.) ffmpeg drops creation\_time when copying tags, so it is passed explicitly; \-brand and \-f keep the original container and brand.  
 * Supported inputs: .mp4, .m4v, .mov (container kept). Anything else (MKV, AVI, …) fails with a clear message; no conversion or re-encoding in v1.
 
 ## **Config, status and file layout**
@@ -176,7 +176,7 @@ Every failure in the core sets status.json to error with a one-line human messag
 | No audio stream | Core (ffprobe) | "No audio track found." |
 | Unsupported container (e.g. AVI) | Lua skips these during target selection; Core checks again for CLI use (extension check during validation, before extraction) | "Subtitles can't be added to this file type." |
 | File exceeds API size/duration limit | Core (pre-check) | State the limit; no upload |
-| File already has our subtitle track | Core (kakitori=1 tag) | Skip transcription; popup says "Japanese subtitles are already in \<name\>" |
+| File already has our subtitle track | Core (jpn subtitle track labelled Japanese) | Skip transcription; popup says "Japanese subtitles are already in \<name\>" |
 | Video still locked after 2 minutes | Core (rename fails) | Keep the Pending copy; "Close the video in VLC, then click Transcribe again." |
 | Second Transcription while one is running | Core (lock file with PID in state folder; a lock whose PID is no longer running is stale and removed) | "A transcription is already running." status.json is not touched |
 
@@ -264,7 +264,7 @@ README must cover: the one-line install command per OS and what it does, the one
 4. ☐ Mux: \-map 0 \-c copy on iPhone/camera MOV files, which often carry data or timecode tracks ffmpeg can't copy. Confirm the automatic \-map \-0:d? retry (step 6) works and that the stream check passes with only data streams missing.  
 5. ☐ Popup: Japanese file names display correctly via osascript and PowerShell \-EncodedCommand; no console window flashes on Windows. macOS: the osascript dialog appears in front when launched from a background process and triggers no permission prompt; if not, fall back to display notification.  
 6. ☐ Bun: hide-console flag for Windows builds.  
-7. ☐ Whether VLC auto-selects the embedded track or the user must pick it; that VLC labels it "Japanese"; that the kakitori=1 tag survives the mux and reads back via ffprobe; that \-movflags use\_metadata\_tags doesn't hide the title, date or location in QuickTime, Photos or Windows (if it does, mark the Video through the Subtitle track's label instead).  
+7. ☐ Whether VLC auto-selects the embedded track or the user must pick it; that VLC labels it "Japanese"; that the title, date and location still show in QuickTime, Photos and Windows after the mux (use\_metadata\_tags was dropped after it hid the title from AVFoundation).  
 8. ☐ Replacing the original while VLC has it open (especially Windows file locks): rename succeeds, or fails with "Close the video in VLC, then click Transcribe again."  
 9. ☐ The core keeps running when the user quits VLC mid-Transcription (Windows start /b and macOS & launch).  
 10. ☐ Windows Defender doesn't flag or quarantine the Bun-compiled binary; if it does, note it in the README next to SmartScreen.
