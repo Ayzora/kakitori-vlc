@@ -1,9 +1,11 @@
 export type ProcessResult = { code: number; stdout: string; stderr: string };
 
 // Runs a program to the end. Arguments go straight to the OS, never through a
-// shell, so paths with spaces or Japanese characters need no quoting.
-export async function runProcess(cmd: string[]): Promise<ProcessResult> {
+// shell, so paths with spaces or Japanese characters need no quoting. `env`
+// replaces the environment when given.
+export async function runProcess(cmd: string[], env?: Record<string, string | undefined>): Promise<ProcessResult> {
   const child = Bun.spawn(cmd, {
+    env,
     stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",
