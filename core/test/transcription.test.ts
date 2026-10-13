@@ -1,5 +1,5 @@
 import { $ } from "bun";
-import { describe, expect, test } from "bun:test";
+import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { chmod, copyFile, rename, rm, stat, utimes } from "node:fs/promises";
 import { join } from "node:path";
@@ -19,6 +19,9 @@ import {
   timeoutError,
   wordsReply,
 } from "./helpers.ts";
+
+// Each test makes and remuxes real Videos; Windows CI machines are slow.
+setDefaultTimeout(30_000);
 
 describe("a successful Transcription", () => {
   test("adds a Japanese Subtitle track inside an MP4 with a Japanese name", async () => {
@@ -308,14 +311,26 @@ describe("a Pending copy", () => {
 
 describe.skipIf(process.platform !== "win32")("a Video locked by another program (Windows)", () => {
   // Opens the Video the way VLC does on Windows: other programs may read it
-  // but not delete or replace it.
+  // but not delete or replace it. Returns once PowerShell reports it has the
+  // file open, however long PowerShell takes to start.
   async function holdOpen(video: string) {
     const path = video.replace(/'/g, "''");
-    const holder = Bun.spawn([
-      "powershell", "-NoProfile", "-Command",
-      `$f = [System.IO.File]::Open('${path}', 'Open', 'Read', 'Read'); Start-Sleep -Seconds 600`,
-    ]);
-    await Bun.sleep(3000);
+    const holder = Bun.spawn(
+      [
+        "powershell", "-NoProfile", "-Command",
+        `$f = [System.IO.File]::Open('${path}', 'Open', 'Read', 'Read'); ` +
+          "[Console]::Out.WriteLine('locked'); [Console]::Out.Flush(); Start-Sleep -Seconds 600",
+      ],
+      { stdout: "pipe" },
+    );
+    const reader = holder.stdout.getReader();
+    let said = "";
+    while (!said.includes("locked")) {
+      const { value, done } = await reader.read();
+      if (done) throw new Error(`PowerShell exited before locking the file: ${said}`);
+      said += new TextDecoder().decode(value);
+    }
+    reader.releaseLock();
     return holder;
   }
 
@@ -345,7 +360,7 @@ describe.skipIf(process.platform !== "win32")("a Video locked by another program
     expect(second).toEqual({ kind: "done", message: "Japanese subtitles added to lesson.mp4" });
     expect(elevenLabs.calls).toHaveLength(1);
     expect(await filesIn(dir)).toEqual(["lesson.mp4"]);
-  }, 60_000);
+  }, 90_000);
 });
 
 describe("a Video that already has a Subtitle track", () => {
