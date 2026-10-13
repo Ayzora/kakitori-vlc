@@ -52,7 +52,9 @@ export function japaneseAudioIndex(info: VideoInfo) {
 // track labelled "Japanese". (A file-level tag would need ffmpeg's
 // use_metadata_tags, which hides the title from Apple's players.)
 export function hasSubtitleTrack(info: VideoInfo) {
-  return streamsOfType(info, "subtitle").some(
-    (s) => s.tags?.language === "jpn" && s.tags?.handler_name === "Japanese",
-  );
+  return info.streams.some(isSubtitleTrack);
+}
+
+export function isSubtitleTrack(s: Stream) {
+  return s.codec_type === "subtitle" && s.tags?.language === "jpn" && s.tags?.handler_name === "Japanese";
 }

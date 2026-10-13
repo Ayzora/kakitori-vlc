@@ -1,3 +1,0 @@
-# A Video is marked as subtitled by its Subtitle track, not a file tag
-
-Kakitori recognises a Video it has already subtitled by a `jpn` subtitle stream labelled `Japanese`, not by a file-level `kakitori=1` tag. Writing a custom file tag into MP4/MOV needs ffmpeg's `-movflags use_metadata_tags`, which rewrites all of the file's tags in a form Apple's AVFoundation doesn't read: in testing, the title disappeared from what QuickTime and Photos see, and the recording date was written twice. The track label survives a plain remux and is visible to every player; the cost is that a Video already carrying someone else's Japanese track labelled "Japanese" is treated as done, which is harmless because it already has Japanese subtitles.

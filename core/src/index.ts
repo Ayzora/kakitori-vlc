@@ -1,19 +1,20 @@
 // kakitori, the core program.
 //
 //   kakitori          runs the Transcription the extension asked for in
-//                     job.json: the user picks the Video in the file picker
-//   kakitori <video>  transcribes one Video from a terminal, without asking
+//                     job.json: the Video VLC is playing
+//   kakitori <video>  transcribes one Video from a terminal
 //
 // Installed layout: <state folder>/bin/kakitori next to ffmpeg and ffprobe,
 // where the state folder is VLC's user data folder plus "kakitori".
 
 import { existsSync } from "node:fs";
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { chooseVideo, confirm, showPopup } from "./dialogs.ts";
-import { log } from "./state.ts";
-import { runTranscription, type TranscriptionRequest, type World } from "./transcription.ts";
+import { pathToFileURL } from "node:url";
+import { notify } from "./notify.ts";
+import { takeRequest } from "./request.ts";
+import { runTranscription, type World } from "./transcription.ts";
 
 const exe = process.platform === "win32" ? ".exe" : "";
 const compiled = !/^bun(\.exe)?$/i.test(basename(process.execPath));
@@ -35,29 +36,17 @@ function tool(name: string) {
   return existsSync(vendored) ? vendored : name;
 }
 
-// The extension's request, in job.json: { id, createdAt }. It is deleted as
-// soon as it is read, so a second launch with nothing waiting exits silently.
-async function takeRequest(dir: string): Promise<TranscriptionRequest | null> {
-  const path = join(dir, "job.json");
-  const file = Bun.file(path);
-  if (!(await file.exists())) return null;
-  const text = await file.text();
-  await rm(path, { force: true });
-  try {
-    const parsed = JSON.parse(text.replace(/^\uFEFF/, ""));
-    return { id: String(parsed.id ?? crypto.randomUUID()), videoPath: null };
-  } catch (error) {
-    await log(dir, `ignoring unreadable job.json: ${error}`);
-    return null;
-  }
-}
-
 const dir = stateDir();
 await mkdir(dir, { recursive: true });
 
 const cliVideo = process.argv[2];
 const request = cliVideo
-  ? { id: crypto.randomUUID(), videoPath: resolve(cliVideo) }
+  ? {
+      id: crypto.randomUUID(),
+      videoPath: resolve(cliVideo),
+      videoUri: pathToFileURL(resolve(cliVideo)).href,
+      replace: false,
+    }
   : await takeRequest(dir);
 if (!request) process.exit(0);
 
@@ -67,10 +56,9 @@ const world: World = {
   ffprobe: tool("ffprobe"),
   env: process.env,
   fetch: (url, init) => fetch(url, init),
-  popup: cliVideo ? async () => {} : showPopup,
   wait: (ms) => Bun.sleep(ms),
-  chooseVideo,
-  confirm,
+  // A terminal run prints the message instead.
+  notify: cliVideo ? async () => {} : notify,
 };
 
 const outcome = await runTranscription(request, world);

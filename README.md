@@ -2,7 +2,7 @@
 
 **Japanese subtitles for your own Japanese videos, made from inside VLC.**
 
-Pick a video, click **Start**, and keep watching. Kakitori sends the video's audio to [ElevenLabs](https://elevenlabs.io) Scribe v2, turns the result into readable Japanese subtitles, and adds them as a subtitle track **inside the same video file**. A popup tells you when it's done.
+Play a video, click **Start**, and keep watching. Kakitori sends the video's audio to [ElevenLabs](https://elevenlabs.io) Scribe v2, turns the result into readable Japanese subtitles, and adds them as a subtitle track **inside the same video file**. When it's done, a notification tells you, and one click reopens the video where you were, with the subtitles on.
 
 The subtitles then work everywhere the file goes: VLC, QuickTime, the Apple TV app, and Films & TV on Windows.
 
@@ -44,26 +44,28 @@ To upgrade later, run the same command again. Your saved API key is kept.
 
 ## Your first transcription
 
-1. Open the Kakitori window:
+1. Open your video in VLC and start watching.
+2. Open the Kakitori window:
    - **macOS:** **VLC → Extensions → Kakitori**
    - **Windows:** **View → Kakitori**
-2. Click **Choose video…**.
-3. **First time only:** paste your ElevenLabs API key and click **Save**.
-4. In the Open window, pick your video. On a Mac you can also drag it in from Finder.
+3. Click **Transcribe this video**.
+4. **First time only:** paste your ElevenLabs API key and click **Save**.
 5. Kakitori asks **"Transcribe <name> (length)?"**. Click **Start**.
-6. Keep using VLC. When the popup says **"Japanese subtitles added to …"**, open the video and choose **Subtitle → Sub Track → Japanese**.
+6. Keep watching. Kakitori works in the background, usually for a minute or two. When it's done, a notification says so.
+7. Open the Kakitori window again and click **Reload video**. The video reopens where you were, with the Japanese subtitles on.
 
-The Kakitori window has two more buttons:
+**macOS:** the notification comes from **Script Editor**, the Mac's built-in tool Kakitori uses to show it. The first time, macOS may ask whether Script Editor can send notifications; allow it to see them. Its **Show** button only opens Script Editor, so you can ignore it. Either way, the Kakitori window always shows how it's going.
 
-- **Change API key:** paste a new key, for example after "API key rejected".
-- **Show last status:** what Kakitori is doing right now, or how the last transcription ended.
+**Windows:** Windows doesn't let Kakitori change a video while VLC is playing it. When the window says **Ready to reload**, click **Reload video**: Kakitori stops the video, adds the subtitles, and reopens it where you were.
+
+The Kakitori window shows how the transcription of the video you're watching is going or how it ended. It also has **Change API key**, to paste a new key, for example after "API key rejected".
 
 ## Good to know
 
 - **Your video file is changed in place.** Kakitori adds one subtitle track and keeps everything else: picture, all audio tracks, existing subtitles, title and modified date. Before writing anything, it checks that the new file is complete. Two things can be lost:
   - **macOS:** Finder tags, Finder comments and the file's creation date.
-  - **Some iPhone videos:** extra camera data that can't be copied. When that happens, the popup tells you.
-- **Each video is transcribed once.** If a video already has Kakitori's Japanese track, Kakitori tells you instead of transcribing it again, so you're never charged twice.
+  - **Some iPhone videos:** extra camera data that can't be copied. When that happens, the notification and the Kakitori window tell you.
+- **Transcribe again:** when a video already has Japanese subtitles, the Kakitori window says so and the button becomes **Transcribe again**. It asks first, because the audio is uploaded and billed again, then replaces Kakitori's Japanese track with the new one. Other subtitle tracks stay.
 - **Only the audio is uploaded** to ElevenLabs, never the picture. See [ElevenLabs' privacy policy](https://elevenlabs.io/privacy-policy).
 - **Your API key is stored in plain text** in `config.json` in Kakitori's folder (see [Where things live](#where-things-live)). On macOS only your user account can read it.
 - **Timeouts:** if ElevenLabs takes more than 15 minutes, Kakitori stops and doesn't retry. ElevenLabs may still finish, and charge for, that attempt.
@@ -84,7 +86,7 @@ Kakitori's programs aren't signed by Apple or Microsoft, so your system may bloc
 
 ### The video is open in VLC (Windows)
 
-Windows doesn't let Kakitori replace a video that VLC has open. Kakitori waits up to 2 minutes for you to close it. If it's still open, Kakitori keeps the finished file next to your video, as `<name>.kakitori.tmp.<ext>`, and asks you to close the video and choose it again. Do that, and Kakitori puts the finished file in place **without contacting ElevenLabs again**. If you never come back for it, you can delete that file.
+Windows doesn't let Kakitori replace a video that VLC has open. So Kakitori keeps the finished file next to your video, as `<name>.kakitori.tmp.<ext>`, and the window says **Ready to reload**. Click **Reload video**, and Kakitori stops the video and puts the finished file in place **without contacting ElevenLabs again**. If you never come back for it, you can delete that file.
 
 ### Messages
 
@@ -100,13 +102,18 @@ Windows doesn't let Kakitori replace a video that VLC has open. Kakitori waits u
 | The audio is larger than ElevenLabs' 3 GB upload limit. | Split the video. Nothing was uploaded. |
 | No audio track found. | The video has no sound to transcribe. |
 | Subtitles can't be added to this file type. | Only MP4, M4V and MOV are supported. |
-| The video file can't be found. | It was moved, renamed or deleted. Choose it again. |
-| Not enough free space next to the Video. | Kakitori needs free space as large as the video while it works. |
+| The video file can't be found. | It was moved, renamed or deleted. Open it again in VLC. |
+| Not enough free space next to the video. | Kakitori needs free space as large as the video while it works. |
 | Couldn't add the subtitles to this file. | Your video is untouched. Details are in `log.txt`. |
 | Something went wrong. See the log for details. | Your video is untouched. Details are in `log.txt`. |
-| A transcription is already running. | Wait for it to finish. |
+| Japanese subtitles are already in … | The video already has Kakitori's subtitles. Use **Transcribe again** to replace them. |
+| A transcription is already running. | Wait for its notification, then try again. |
 | Kakitori is still starting the last transcription. … | Wait a few seconds and try again. |
-| Close the video in VLC, then choose it again in Kakitori. | See [The video is open in VLC](#the-video-is-open-in-vlc-windows). |
+| Kakitori isn't fully installed. Run the install command again. | Run the install command again. |
+| The subtitles are ready. Click Reload video to add them. | See [The video is open in VLC](#the-video-is-open-in-vlc-windows). |
+| Open a video in VLC first, then click Transcribe this video. | Start playing the video you want transcribed. |
+| Kakitori can only transcribe a video file on this computer. | Streams and discs aren't supported. |
+| Kakitori is still adding the subtitles. … | Wait a moment, then click **Reload video** again. |
 | Kakitori didn't start. … | See ["Kakitori didn't start"](#kakitori-didnt-start). |
 
 ## Where things live
@@ -150,16 +157,12 @@ bun run fetch-ffmpeg        # static ffmpeg + ffprobe for the tests, into core/v
 bun test
 bun check                   # type check
 bun run build               # compiled program in core/dist
-bun src/index.ts video.mp4  # transcribe one video from a terminal, without the picker
+bun src/index.ts video.mp4  # transcribe one video from a terminal
 ```
 
 - **Test the installer with a local build:** set `KAKITORI_BASE_URL` to a `file://` folder that holds the platform zip and `SHA256SUMS.txt`.
 - **Release:** push a tag such as `v1.0.0`. GitHub Actions tests on macOS and Windows, builds all three platforms, and publishes the release (`.github/workflows/release.yml`).
-- **Design notes:**
-  - `CONTEXT.md`: the words we use
-  - `docs/adr/`: decisions and why
-  - `.scratch/kakitori-vlc-v1/spec.md`: the spec
-  - `docs/design-spec-v1.md`: the original design
+- **How it fits together:** the extension (`extension/kakitori.lua`) only starts work and reopens the video. It writes the request into `job.json` in Kakitori's folder and starts the core (`core/`) with no arguments, so no path or key ever goes on a command line. The core does the rest (ffprobe, audio extraction, ElevenLabs, building the subtitles, the checked copy and swap), reports every stage in `status.json`, which the Kakitori window shows, and ends with a notification.
 
 ## License
 

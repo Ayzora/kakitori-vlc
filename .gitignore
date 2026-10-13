@@ -6,3 +6,7 @@ core/dist/
 
 # static ffmpeg for local tests (bun run fetch-ffmpeg)
 core/vendor/
+
+# Kept on this computer only: the spec and instructions for AI coding tools.
+SPEC.md
+CLAUDE.md

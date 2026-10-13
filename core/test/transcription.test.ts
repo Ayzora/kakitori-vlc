@@ -3,6 +3,7 @@ import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { chmod, copyFile, rename, rm, stat, utimes } from "node:fs/promises";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { runTranscription } from "../src/transcription.ts";
 import {
   WORDS_SRT,
@@ -14,6 +15,7 @@ import {
   probe,
   stateRecordingFfmpeg,
   readStatus,
+  requestFor,
   subtitleText,
   tempDir,
   timeoutError,
@@ -30,7 +32,7 @@ describe("a successful Transcription", () => {
     const elevenLabs = await fakeElevenLabs(wordsReply());
     const world = await makeWorld(elevenLabs.fetch);
 
-    const outcome = await runTranscription({ id: "t1", videoPath: video }, world);
+    const outcome = await runTranscription(requestFor(video), world);
 
     expect(outcome.kind).toBe("done");
     const after = await probe(video);
@@ -40,11 +42,14 @@ describe("a successful Transcription", () => {
     expect(subtitles[0]!.tags?.language).toBe("jpn");
     expect(subtitles[0]!.tags?.handler_name).toBe("Japanese");
     expect(await subtitleText(video, 0)).toBe(WORDS_SRT);
-    expect(world.popups).toEqual(["Japanese subtitles added to 日本語の動画.mp4"]);
+    expect(world.notifications).toEqual([
+      "Japanese subtitles added to 日本語の動画.mp4. Open Kakitori and click Reload video.",
+    ]);
     expect(await readStatus(world)).toMatchObject({
       id: "t1",
       state: "done",
       inputPath: video,
+      videoUri: pathToFileURL(video).href,
       message: "Japanese subtitles added to 日本語の動画.mp4",
     });
     expect(await filesIn(dir)).toEqual(["日本語の動画.mp4"]);
@@ -56,7 +61,7 @@ describe("a successful Transcription", () => {
     const elevenLabs = await fakeElevenLabs(wordsReply());
     const world = await makeWorld(elevenLabs.fetch, "sk-saved");
 
-    await runTranscription({ id: "t1", videoPath: video }, world);
+    await runTranscription(requestFor(video), world);
 
     expect(elevenLabs.calls).toHaveLength(1);
     const call = elevenLabs.calls[0]!;
@@ -86,7 +91,7 @@ describe("a successful Transcription", () => {
     const world = await makeWorld(elevenLabs.fetch, "sk-saved");
     world.env.ELEVENLABS_API_KEY = "sk-from-env";
 
-    await runTranscription({ id: "t1", videoPath: video }, world);
+    await runTranscription(requestFor(video), world);
 
     expect(elevenLabs.calls[0]!.headers.get("xi-api-key")).toBe("sk-from-env");
   });
@@ -98,7 +103,7 @@ describe("a successful Transcription", () => {
       const before = await probe(video);
       const world = await makeWorld((await fakeElevenLabs(wordsReply())).fetch);
 
-      const outcome = await runTranscription({ id: "t1", videoPath: video }, world);
+      const outcome = await runTranscription(requestFor(video), world);
 
       expect(outcome).toEqual({ kind: "done", message: `Japanese subtitles added to ${name}` });
       const after = await probe(video);
@@ -125,7 +130,7 @@ describe("what the Video keeps", () => {
     const elevenLabs = await fakeElevenLabs(wordsReply());
     const world = await makeWorld(elevenLabs.fetch);
 
-    await runTranscription({ id: "t1", videoPath: video }, world);
+    await runTranscription(requestFor(video), world);
 
     const after = await probe(video);
     const signature = (p: typeof before) => p.streams.map((s) => `${s.codec_type}:${s.codec_name}`);
@@ -146,7 +151,7 @@ describe("what the Video keeps", () => {
     });
     const elevenLabs = await fakeElevenLabs(wordsReply());
 
-    await runTranscription({ id: "t1", videoPath: video }, await makeWorld(elevenLabs.fetch));
+    await runTranscription(requestFor(video), await makeWorld(elevenLabs.fetch));
 
     const uploaded = await probe(elevenLabs.calls[0]!.audioPath);
     expect(uploaded.streams[0]!.channels).toBe(1);
@@ -159,7 +164,7 @@ describe("what the Video keeps", () => {
     });
     const elevenLabs = await fakeElevenLabs(wordsReply());
 
-    await runTranscription({ id: "t1", videoPath: video }, await makeWorld(elevenLabs.fetch));
+    await runTranscription(requestFor(video), await makeWorld(elevenLabs.fetch));
 
     const uploaded = await probe(elevenLabs.calls[0]!.audioPath);
     expect(uploaded.streams[0]!.channels).toBe(2);
@@ -172,7 +177,7 @@ describe("what the Video keeps", () => {
     });
     const elevenLabs = await fakeElevenLabs(wordsReply());
 
-    const outcome = await runTranscription({ id: "t1", videoPath: video }, await makeWorld(elevenLabs.fetch));
+    const outcome = await runTranscription(requestFor(video), await makeWorld(elevenLabs.fetch));
 
     expect(outcome.kind).toBe("done");
     const uploaded = await probe(elevenLabs.calls[0]!.audioPath);
@@ -184,7 +189,7 @@ describe("what the Video keeps", () => {
     const video = await makeVideo(dir, "trip.mov", { tags: { title: "京都旅行" } });
     const world = await makeWorld((await fakeElevenLabs(wordsReply())).fetch);
 
-    await runTranscription({ id: "t1", videoPath: video }, world);
+    await runTranscription(requestFor(video), world);
 
     const apple = await $`avmetareadwrite -o ${video}`.text();
     expect(apple).toContain("common/title: 京都旅行");
@@ -198,7 +203,7 @@ describe("the swap", () => {
     const modified = new Date("2021-06-01T12:00:00Z");
     await utimes(video, modified, modified);
 
-    await runTranscription({ id: "t1", videoPath: video }, await makeWorld((await fakeElevenLabs(wordsReply())).fetch));
+    await runTranscription(requestFor(video), await makeWorld((await fakeElevenLabs(wordsReply())).fetch));
 
     expect((await stat(video)).mtime.toISOString()).toBe(modified.toISOString());
   });
@@ -208,25 +213,25 @@ describe("the swap", () => {
     const video = await makeVideo(dir, "lesson.mp4");
     await chmod(video, 0o640);
 
-    await runTranscription({ id: "t1", videoPath: video }, await makeWorld((await fakeElevenLabs(wordsReply())).fetch));
+    await runTranscription(requestFor(video), await makeWorld((await fakeElevenLabs(wordsReply())).fetch));
 
     expect((await stat(video)).mode & 0o777).toBe(0o640);
   });
 });
 
 describe.skipIf(process.platform === "win32")("camera data and the safety check", () => {
-  test("data tracks ffmpeg can't copy are dropped, and the popup says so", async () => {
+  test("data tracks ffmpeg can't copy are dropped, and the status says so", async () => {
     const dir = await tempDir();
     const video = await makeVideo(dir, "IMG_0001.MOV", { timecode: true });
     const before = await probe(video);
     const world = await makeWorld((await fakeElevenLabs(wordsReply())).fetch);
     world.ffmpeg = await misbehavingFfmpeg("refuse-data");
 
-    const outcome = await runTranscription({ id: "t1", videoPath: video }, world);
+    const outcome = await runTranscription(requestFor(video), world);
 
     const message = "Japanese subtitles added to IMG_0001.MOV. Some extra camera data was removed.";
     expect(outcome).toEqual({ kind: "done", message });
-    expect(world.popups).toEqual([message]);
+    expect(await readStatus(world)).toMatchObject({ state: "done", message });
     const kinds = (p: typeof before) => p.streams.map((s) => s.codec_type);
     expect(kinds(before)).toEqual(["video", "audio", "data"]);
     expect(kinds(await probe(video))).toEqual(["video", "audio", "subtitle"]);
@@ -239,7 +244,7 @@ describe.skipIf(process.platform === "win32")("camera data and the safety check"
     const world = await makeWorld((await fakeElevenLabs(wordsReply())).fetch);
     world.ffmpeg = await misbehavingFfmpeg("drop-audio");
 
-    const outcome = await runTranscription({ id: "t1", videoPath: video }, world);
+    const outcome = await runTranscription(requestFor(video), world);
 
     expect(outcome).toEqual({ kind: "error", message: "Couldn't add the subtitles to this file." });
     expect(await Bun.file(video).bytes()).toEqual(bytes);
@@ -254,7 +259,7 @@ describe("a Pending copy", () => {
     const finished = video.replace(/\.mp4$/, ".finished.mp4");
     await copyFile(video, finished);
     await runTranscription(
-      { id: "earlier", videoPath: finished },
+      requestFor(finished, "earlier"),
       await makeWorld((await fakeElevenLabs(wordsReply())).fetch),
     );
     const pending = video.replace(/\.mp4$/, ".kakitori.tmp.mp4");
@@ -272,7 +277,7 @@ describe("a Pending copy", () => {
     const elevenLabs = await fakeElevenLabs(new TypeError("must not be called"));
     const world = await makeWorld(elevenLabs.fetch);
 
-    const outcome = await runTranscription({ id: "t1", videoPath: video }, world);
+    const outcome = await runTranscription(requestFor(video), world);
 
     expect(outcome).toEqual({ kind: "done", message: "Japanese subtitles added to lesson.mp4" });
     expect(elevenLabs.calls).toHaveLength(0);
@@ -287,7 +292,7 @@ describe("a Pending copy", () => {
     await pendingCopyOf(video, new Date("2020-01-01T00:00:00Z"));
     const elevenLabs = await fakeElevenLabs(wordsReply());
 
-    const outcome = await runTranscription({ id: "t1", videoPath: video }, await makeWorld(elevenLabs.fetch));
+    const outcome = await runTranscription(requestFor(video), await makeWorld(elevenLabs.fetch));
 
     expect(outcome.kind).toBe("done");
     expect(elevenLabs.calls).toHaveLength(1);
@@ -300,7 +305,7 @@ describe("a Pending copy", () => {
     await Bun.write(join(dir, "lesson.kakitori.tmp.mp4"), "half a file");
     const elevenLabs = await fakeElevenLabs(wordsReply());
 
-    const outcome = await runTranscription({ id: "t1", videoPath: video }, await makeWorld(elevenLabs.fetch));
+    const outcome = await runTranscription(requestFor(video), await makeWorld(elevenLabs.fetch));
 
     expect(outcome.kind).toBe("done");
     expect(elevenLabs.calls).toHaveLength(1);
@@ -334,33 +339,30 @@ describe.skipIf(process.platform !== "win32")("a Video locked by another program
     return holder;
   }
 
-  test("is retried for 2 minutes, then the copy is kept as a Pending copy and used next time", async () => {
+  test("is kept as a Pending copy, then swapped in once the Video is closed", async () => {
     const dir = await tempDir();
     const video = await makeVideo(dir, "lesson.mp4");
     const holder = await holdOpen(video);
     const elevenLabs = await fakeElevenLabs(wordsReply());
     const world = await makeWorld(elevenLabs.fetch);
-    const states: string[] = [];
-    world.wait = async (ms) => {
-      world.waits.push(ms);
-      states.push((await readStatus(world)).state);
-    };
 
-    const first = await runTranscription({ id: "t1", videoPath: video }, world);
+    const first = await runTranscription(requestFor(video), world);
     holder.kill();
     await holder.exited;
 
-    expect(first).toEqual({ kind: "error", message: "Close the video in VLC, then choose it again in Kakitori." });
-    expect(world.waits).toEqual(Array(24).fill(5000));
-    expect(new Set(states)).toEqual(new Set(["waiting-for-unlock"]));
+    const message = "The subtitles are ready. Click Reload video to add them.";
+    expect(first).toEqual({ kind: "pending", message });
+    expect(world.notifications).toEqual(["The subtitles are ready. Open Kakitori and click Reload video to add them."]);
+    expect(await readStatus(world)).toMatchObject({ state: "pending", message });
+    expect(world.waits).toEqual([]);
     expect(await filesIn(dir)).toEqual(["lesson.kakitori.tmp.mp4", "lesson.mp4"]);
 
-    const second = await runTranscription({ id: "t2", videoPath: video }, world);
+    const second = await runTranscription(requestFor(video, "t2"), world);
 
     expect(second).toEqual({ kind: "done", message: "Japanese subtitles added to lesson.mp4" });
     expect(elevenLabs.calls).toHaveLength(1);
     expect(await filesIn(dir)).toEqual(["lesson.mp4"]);
-  }, 90_000);
+  });
 });
 
 describe("a Video that already has a Subtitle track", () => {
@@ -368,18 +370,62 @@ describe("a Video that already has a Subtitle track", () => {
     const dir = await tempDir();
     const video = await makeVideo(dir, "lesson.mp4");
     const elevenLabs = await fakeElevenLabs(wordsReply());
-    await runTranscription({ id: "t1", videoPath: video }, await makeWorld(elevenLabs.fetch));
+    await runTranscription(requestFor(video), await makeWorld(elevenLabs.fetch));
     const bytes = await Bun.file(video).bytes();
     const world = await makeWorld(elevenLabs.fetch);
 
-    const outcome = await runTranscription({ id: "t2", videoPath: video }, world);
+    const outcome = await runTranscription(requestFor(video, "t2"), world);
 
     const message = "Japanese subtitles are already in lesson.mp4";
     expect(outcome).toEqual({ kind: "already-subtitled", message });
+    expect(world.notifications).toEqual([message]);
     expect(elevenLabs.calls).toHaveLength(1);
-    expect(world.popups).toEqual([message]);
     expect(await readStatus(world)).toMatchObject({ id: "t2", state: "done", message });
     expect(await Bun.file(video).bytes()).toEqual(bytes);
+  });
+});
+
+describe("Transcribe again", () => {
+  // さようなら。 spoken from 0.2 s to 1.0 s.
+  const OTHER_WORDS = [{ text: "さようなら。", start: 0.2, end: 1.0, type: "word" as const }];
+  const OTHER_SRT = "1\n00:00:00,000 --> 00:00:01,700\nさようなら。\n\n";
+
+  test("replaces the Subtitle track with a new one, keeping every other stream", async () => {
+    const dir = await tempDir();
+    const existing = "1\n00:00:00,500 --> 00:00:01,500\nHello\n\n";
+    const video = await makeVideo(dir, "lesson.mp4", { subtitleSrt: existing });
+    const elevenLabs = await fakeElevenLabs(wordsReply(), wordsReply(OTHER_WORDS));
+    await runTranscription(requestFor(video), await makeWorld(elevenLabs.fetch));
+    const world = await makeWorld(elevenLabs.fetch);
+
+    const outcome = await runTranscription(requestFor(video, "t2", true), world);
+
+    const message = "Japanese subtitles replaced in lesson.mp4";
+    expect(outcome).toEqual({ kind: "done", message });
+    expect(await readStatus(world)).toMatchObject({ state: "done", message });
+    expect(elevenLabs.calls).toHaveLength(2);
+    const after = await probe(video);
+    expect(after.streams.map((s) => `${s.codec_type}:${s.codec_name}`)).toEqual([
+      "video:mpeg4",
+      "audio:aac",
+      "subtitle:mov_text",
+      "subtitle:mov_text",
+    ]);
+    expect(after.streams.filter((s) => s.tags?.language === "jpn" && s.codec_type === "subtitle")).toHaveLength(1);
+    expect(await subtitleText(video, 0)).toBe(existing);
+    expect(await subtitleText(video, 1)).toBe(OTHER_SRT);
+    expect(await filesIn(dir)).toEqual(["lesson.mp4"]);
+  });
+
+  test("of a Video without a Subtitle track is an ordinary Transcription", async () => {
+    const dir = await tempDir();
+    const video = await makeVideo(dir, "lesson.mp4");
+    const world = await makeWorld((await fakeElevenLabs(wordsReply())).fetch);
+
+    const outcome = await runTranscription(requestFor(video, "t1", true), world);
+
+    expect(outcome).toEqual({ kind: "done", message: "Japanese subtitles added to lesson.mp4" });
+    expect(await subtitleText(video, 0)).toBe(WORDS_SRT);
   });
 });
 
@@ -410,11 +456,11 @@ describe("Videos that are turned away", () => {
       const elevenLabs = await fakeElevenLabs(wordsReply());
       const world = await makeWorld(elevenLabs.fetch);
 
-      const outcome = await runTranscription({ id: "t1", videoPath: video }, world);
+      const outcome = await runTranscription(requestFor(video), world);
 
       expect(outcome).toEqual({ kind: "error", message });
       expect(elevenLabs.calls).toHaveLength(0);
-      expect(world.popups).toEqual([message]);
+      expect(world.notifications).toEqual([message]);
       expect(await readStatus(world)).toMatchObject({ id: "t1", state: "error", inputPath: video, message });
       expect(await filesIn(dir)).toEqual(before);
     });
@@ -471,11 +517,10 @@ describe("when ElevenLabs fails", () => {
       const elevenLabs = await fakeElevenLabs(...replies);
       const world = await makeWorld(elevenLabs.fetch);
 
-      const outcome = await runTranscription({ id: "t1", videoPath: video }, world);
+      const outcome = await runTranscription(requestFor(video), world);
 
       expect(outcome).toEqual({ kind: "error", message });
       expect(elevenLabs.calls).toHaveLength(calls);
-      expect(world.popups).toEqual([message]);
       expect(await readStatus(world)).toMatchObject({ state: "error", message });
       expect(await Bun.file(video).bytes()).toEqual(bytes);
       expect(await filesIn(dir)).toEqual(["lesson.mp4"]);
@@ -488,7 +533,7 @@ describe("when ElevenLabs fails", () => {
     const elevenLabs = await fakeElevenLabs(new TypeError("fetch failed"), new Response("", { status: 503 }), wordsReply());
     const world = await makeWorld(elevenLabs.fetch);
 
-    const outcome = await runTranscription({ id: "t1", videoPath: video }, world);
+    const outcome = await runTranscription(requestFor(video), world);
 
     expect(outcome.kind).toBe("done");
     expect(elevenLabs.calls).toHaveLength(3);
@@ -500,7 +545,7 @@ describe("when ElevenLabs fails", () => {
     const video = await makeVideo(dir, "lesson.mp4");
     const world = await makeWorld((await fakeElevenLabs(timeoutError())).fetch);
 
-    await runTranscription({ id: "t1", videoPath: video }, world);
+    await runTranscription(requestFor(video), world);
 
     expect(world.waits).toEqual([]);
   });
@@ -516,10 +561,10 @@ describe("one Transcription at a time", () => {
     await Bun.write(join(world.stateDir, "status.json"), JSON.stringify(running));
     await Bun.write(join(world.stateDir, "kakitori.lock"), String(process.pid));
 
-    const outcome = await runTranscription({ id: "t2", videoPath: video }, world);
+    const outcome = await runTranscription(requestFor(video, "t2"), world);
 
     expect(outcome).toEqual({ kind: "error", message: "A transcription is already running." });
-    expect(world.popups).toEqual(["A transcription is already running."]);
+    expect(world.notifications).toEqual(["A transcription is already running."]);
     expect(elevenLabs.calls).toHaveLength(0);
     expect(await readStatus(world)).toEqual(running);
     expect(existsSync(join(world.stateDir, "kakitori.lock"))).toBe(true);
@@ -533,7 +578,7 @@ describe("one Transcription at a time", () => {
     await ended.exited;
     await Bun.write(join(world.stateDir, "kakitori.lock"), String(ended.pid));
 
-    const outcome = await runTranscription({ id: "t1", videoPath: video }, world);
+    const outcome = await runTranscription(requestFor(video), world);
 
     expect(outcome.kind).toBe("done");
     expect(existsSync(join(world.stateDir, "kakitori.lock"))).toBe(false);
@@ -550,15 +595,18 @@ describe("one Transcription at a time", () => {
     const world = await makeWorld(elevenLabs.fetch);
     const statusNow = () => JSON.parse(readFileSync(join(world.stateDir, "status.json"), "utf8"));
     world.ffmpeg = await stateRecordingFfmpeg(join(world.stateDir, "status.json"), states);
-    world.popup = async () => appendFileSync(states, `${statusNow().state}\n`);
 
-    await runTranscription({ id: "t1", videoPath: video }, world);
+    await runTranscription(requestFor(video), world);
+    appendFileSync(states, `${statusNow().state}\n`);
 
     const seen = (await Bun.file(states).text()).trim().split("\n");
     expect(seen.filter((state, i) => state !== seen[i - 1])).toEqual(["extracting", "transcribing", "muxing", "done"]);
   });
 
-  test("the final status is written and the lock released before the popup shows", async () => {
+});
+
+describe("the notification", () => {
+  test("comes last, once the status is final and the lock released", async () => {
     const dir = await tempDir();
     const video = await makeVideo(dir, "lesson.mp4");
     const seen: { state: string; locked: boolean }[] = [];
@@ -569,16 +617,31 @@ describe("one Transcription at a time", () => {
     const world = await makeWorld(elevenLabs.fetch);
     const statusNow = () => JSON.parse(readFileSync(join(world.stateDir, "status.json"), "utf8"));
     const lockedNow = () => existsSync(join(world.stateDir, "kakitori.lock"));
-    world.popup = async () => {
+    world.notify = async () => {
       seen.push({ state: statusNow().state, locked: lockedNow() });
     };
 
-    await runTranscription({ id: "t1", videoPath: video }, world);
+    await runTranscription(requestFor(video), world);
 
     expect(seen).toEqual([
       { state: "transcribing", locked: true },
       { state: "done", locked: false },
     ]);
+  });
+
+  test("that fails to show is logged, and the result is still in the status", async () => {
+    const dir = await tempDir();
+    const video = await makeVideo(dir, "lesson.mp4");
+    const world = await makeWorld((await fakeElevenLabs(wordsReply())).fetch);
+    world.notify = async () => {
+      throw new Error("osascript exited with 1");
+    };
+
+    const outcome = await runTranscription(requestFor(video), world);
+
+    expect(outcome.kind).toBe("done");
+    expect(await readStatus(world)).toMatchObject({ state: "done", message: "Japanese subtitles added to lesson.mp4" });
+    expect(await Bun.file(join(world.stateDir, "log.txt")).text()).toContain("osascript exited with 1");
   });
 });
 
@@ -590,8 +653,8 @@ describe("the log", () => {
     const rejected = Response.json({ detail: { message: "Invalid API key" } }, { status: 401 });
     const world = await makeWorld((await fakeElevenLabs(rejected, wordsReply())).fetch, key);
 
-    await runTranscription({ id: "t1", videoPath: video }, world);
-    await runTranscription({ id: "t2", videoPath: video }, world);
+    await runTranscription(requestFor(video), world);
+    await runTranscription(requestFor(video, "t2"), world);
 
     const log = await Bun.file(join(world.stateDir, "log.txt")).text();
     expect(log).toContain("[t1]");
@@ -599,20 +662,6 @@ describe("the log", () => {
     expect(log).not.toContain(key);
   });
 
-  test("a popup that fails to show is logged and the result is still in the status", async () => {
-    const dir = await tempDir();
-    const video = await makeVideo(dir, "lesson.mp4");
-    const world = await makeWorld((await fakeElevenLabs(wordsReply())).fetch);
-    world.popup = async () => {
-      throw new Error("osascript exited with 1");
-    };
-
-    const outcome = await runTranscription({ id: "t1", videoPath: video }, world);
-
-    expect(outcome.kind).toBe("done");
-    expect(await readStatus(world)).toMatchObject({ state: "done", message: "Japanese subtitles added to lesson.mp4" });
-    expect(await Bun.file(join(world.stateDir, "log.txt")).text()).toContain("osascript exited with 1");
-  });
 });
 
 describe("the API key", () => {
@@ -623,98 +672,9 @@ describe("the API key", () => {
     const world = await makeWorld(elevenLabs.fetch);
     await rm(join(world.stateDir, "config.json"));
 
-    const outcome = await runTranscription({ id: "t1", videoPath: video }, world);
+    const outcome = await runTranscription(requestFor(video), world);
 
     expect(outcome).toEqual({ kind: "error", message: "No API key saved. Use Change API key." });
     expect(elevenLabs.calls).toHaveLength(0);
   });
 });
-
-describe("choosing the Video in the file picker", () => {
-  test("asks to confirm the name and length, then transcribes", async () => {
-    const dir = await tempDir();
-    const video = await makeVideo(dir, "授業.mp4", { seconds: 3 });
-    const elevenLabs = await fakeElevenLabs(wordsReply());
-    const world = await makeWorld(elevenLabs.fetch);
-    world.chooseVideo = async () => video;
-
-    const outcome = await runTranscription({ id: "t1", videoPath: null }, world);
-
-    expect(world.confirmations).toEqual(["Transcribe 授業.mp4 (0:03)?"]);
-    expect(outcome).toEqual({ kind: "done", message: "Japanese subtitles added to 授業.mp4" });
-    expect(await readStatus(world)).toMatchObject({ state: "done", inputPath: video });
-    expect(await subtitleText(video, 0)).toBe(WORDS_SRT);
-  });
-
-  test("cancelling the picker changes nothing and shows no popup", async () => {
-    const elevenLabs = await fakeElevenLabs(wordsReply());
-    const world = await makeWorld(elevenLabs.fetch);
-    world.chooseVideo = async () => null;
-
-    const outcome = await runTranscription({ id: "t1", videoPath: null }, world);
-
-    expect(outcome.kind).toBe("cancelled");
-    expect(world.popups).toEqual([]);
-    expect(existsSync(join(world.stateDir, "status.json"))).toBe(false);
-    expect(existsSync(join(world.stateDir, "kakitori.lock"))).toBe(false);
-    expect(elevenLabs.calls).toHaveLength(0);
-  });
-
-  test("answering Cancel to the confirmation uploads nothing and leaves the Video alone", async () => {
-    const dir = await tempDir();
-    const video = await makeVideo(dir, "lesson.mp4");
-    const bytes = await Bun.file(video).bytes();
-    const elevenLabs = await fakeElevenLabs(wordsReply());
-    const world = await makeWorld(elevenLabs.fetch);
-    world.chooseVideo = async () => video;
-    world.answer = false;
-
-    const outcome = await runTranscription({ id: "t1", videoPath: null }, world);
-
-    expect(outcome.kind).toBe("cancelled");
-    expect(elevenLabs.calls).toHaveLength(0);
-    expect(world.popups).toEqual([]);
-    expect(existsSync(join(world.stateDir, "status.json"))).toBe(false);
-    expect(await Bun.file(video).bytes()).toEqual(bytes);
-  });
-
-  test("a Video that already has a Subtitle track isn't offered for transcription", async () => {
-    const dir = await tempDir();
-    const video = await makeVideo(dir, "lesson.mp4");
-    const elevenLabs = await fakeElevenLabs(wordsReply());
-    await runTranscription({ id: "t0", videoPath: video }, await makeWorld(elevenLabs.fetch));
-    const world = await makeWorld(elevenLabs.fetch);
-    world.chooseVideo = async () => video;
-
-    const outcome = await runTranscription({ id: "t1", videoPath: null }, world);
-
-    expect(world.confirmations).toEqual([]);
-    expect(outcome).toEqual({ kind: "already-subtitled", message: "Japanese subtitles are already in lesson.mp4" });
-  });
-
-  test("while a Transcription is running, the picker doesn't open", async () => {
-    const world = await makeWorld((await fakeElevenLabs(wordsReply())).fetch);
-    await Bun.write(join(world.stateDir, "kakitori.lock"), String(process.pid));
-    let opened = false;
-    world.chooseVideo = async () => {
-      opened = true;
-      return null;
-    };
-
-    const outcome = await runTranscription({ id: "t1", videoPath: null }, world);
-
-    expect(opened).toBe(false);
-    expect(outcome.message).toBe("A transcription is already running.");
-  });
-
-  test("a Video given directly (from a terminal) is not asked about", async () => {
-    const dir = await tempDir();
-    const video = await makeVideo(dir, "lesson.mp4");
-    const world = await makeWorld((await fakeElevenLabs(wordsReply())).fetch);
-
-    await runTranscription({ id: "t1", videoPath: video }, world);
-
-    expect(world.confirmations).toEqual([]);
-  });
-});
-

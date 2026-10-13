@@ -1,4 +1,4 @@
-// The Transcription runner: one Transcription from its request to the popup.
+// The Transcription runner: one Transcription from its request to the notification.
 
 import { existsSync } from "node:fs";
 import { mkdtemp, rm, stat, statfs } from "node:fs/promises";
@@ -15,8 +15,10 @@ import { log, writeStatus, type State } from "./state.ts";
 import { swapIn } from "./swap.ts";
 import { hasSubtitleTrack, inspect, japaneseAudioIndex, streamsOfType, type VideoInfo } from "./video.ts";
 
-// videoPath null: the user picks the Video in the file picker, then confirms it.
-export type TranscriptionRequest = { id: string; videoPath: string | null };
+// videoUri is how VLC names the Video; the extension reopens it by that name.
+// replace: the user asked to transcribe again, so a Video that already has a
+// Subtitle track gets a new one in its place instead of being turned away.
+export type TranscriptionRequest = { id: string; videoPath: string; videoUri: string; replace: boolean };
 
 // Everything outside the core that a Transcription touches.
 export type World = {
@@ -25,15 +27,14 @@ export type World = {
   ffprobe: string;
   env: Record<string, string | undefined>;
   fetch: Fetch;
-  popup: (message: string) => Promise<void>;
   wait: (ms: number) => Promise<void>;
-  // The system file picker; null when the user cancels.
-  chooseVideo: () => Promise<string | null>;
-  // A Start / Cancel question; true for Start.
-  confirm: (question: string) => Promise<boolean>;
+  // A notification that fades away on its own.
+  notify: (message: string) => Promise<void>;
 };
 
-export type Outcome = { kind: "done" | "already-subtitled" | "cancelled" | "error"; message: string };
+// "pending": the Video was in use, so the finished copy is kept as a Pending
+// copy until the extension's Reload video stops playback and starts the core again.
+export type Outcome = { kind: "done" | "already-subtitled" | "pending" | "error"; message: string };
 
 type ReportState = (state: State) => Promise<void>;
 
@@ -42,30 +43,28 @@ const MAX_SECONDS = 10 * 60 * 60;
 const MAX_UPLOAD_BYTES = 3 * 1024 ** 3;
 
 export async function runTranscription(request: TranscriptionRequest, world: World): Promise<Outcome> {
-  let videoPath = request.videoPath ?? "";
   const status = (state: State, message = "") =>
-    writeStatus(world.stateDir, { id: request.id, state, inputPath: videoPath, message });
+    writeStatus(world.stateDir, {
+      id: request.id,
+      state,
+      inputPath: request.videoPath,
+      videoUri: request.videoUri,
+      message,
+    });
 
-  await log(world.stateDir, `[${request.id}] start ${request.videoPath ?? "(file picker)"}`);
+  await log(world.stateDir, `[${request.id}] start ${request.videoPath}`);
   if (!(await acquireLock(world.stateDir))) {
     // The running Transcription owns status.json, so it is left alone.
     const outcome: Outcome = { kind: "error", message: "A transcription is already running." };
     await log(world.stateDir, `[${request.id}] ${outcome.message}`);
-    await showPopup(world, request.id, outcome.message);
+    await showNotification(world, request.id, outcome.message);
     return outcome;
   }
 
   const tempDir = await mkdtemp(join(tmpdir(), "kakitori-"));
   let outcome: Outcome;
   try {
-    if (request.videoPath === null) {
-      const chosen = await world.chooseVideo();
-      if (chosen) await log(world.stateDir, `[${request.id}] chose ${chosen}`);
-      videoPath = chosen ?? "";
-    }
-    outcome = videoPath
-      ? await transcribeVideo(videoPath, world, tempDir, status, request.videoPath === null)
-      : { kind: "cancelled", message: "" };
+    outcome = await transcribeVideo(request.videoPath, request.replace, world, tempDir, status);
   } catch (error) {
     await log(world.stateDir, `[${request.id}] failed: ${describe(error)}`);
     const message = error instanceof Refusal ? error.message : "Something went wrong. See the log for details.";
@@ -73,24 +72,39 @@ export async function runTranscription(request: TranscriptionRequest, world: Wor
   }
   try {
     await rm(tempDir, { recursive: true, force: true });
-    // A cancelled Transcription leaves the last status as it was.
-    if (outcome.kind !== "cancelled") await status(outcome.kind === "error" ? "error" : "done", outcome.message);
+    await status(FINAL_STATE[outcome.kind], outcome.message);
   } finally {
     await releaseLock(world.stateDir);
   }
   await log(world.stateDir, `[${request.id}] ${outcome.kind}${outcome.message ? `: ${outcome.message}` : ""}`);
-  // Last of all: a popup nobody clicks must not hold anything up.
-  if (outcome.kind !== "cancelled") await showPopup(world, request.id, outcome.message);
+  // Last of all, once the status is final and the lock released.
+  await showNotification(world, request.id, notification(outcome));
   return outcome;
 }
 
-async function showPopup(world: World, id: string, message: string) {
+// A new Subtitle track only shows once VLC opens the Video again, which the
+// user starts from the Kakitori window.
+function notification(outcome: Outcome) {
+  if (outcome.kind === "done") return `${outcome.message}. Open Kakitori and click Reload video.`;
+  if (outcome.kind === "pending") return "The subtitles are ready. Open Kakitori and click Reload video to add them.";
+  return outcome.message;
+}
+
+// A notification that fails to show is only logged: the result is in the status.
+async function showNotification(world: World, id: string, message: string) {
   try {
-    await world.popup(message);
+    await world.notify(message);
   } catch (error) {
-    await log(world.stateDir, `[${id}] popup failed: ${describe(error)}`);
+    await log(world.stateDir, `[${id}] notification failed: ${describe(error)}`);
   }
 }
+
+const FINAL_STATE: Record<Outcome["kind"], State> = {
+  done: "done",
+  "already-subtitled": "done",
+  pending: "pending",
+  error: "error",
+};
 
 function describe(error: unknown): string {
   if (!(error instanceof Error)) return String(error);
@@ -100,10 +114,10 @@ function describe(error: unknown): string {
 
 async function transcribeVideo(
   videoPath: string,
+  replace: boolean,
   world: World,
   tempDir: string,
   status: ReportState,
-  askFirst: boolean,
 ): Promise<Outcome> {
   const name = basename(videoPath);
   if (!existsSync(videoPath)) throw new Refusal("The video file can't be found.");
@@ -112,22 +126,19 @@ async function transcribeVideo(
   }
   const video = await inspect(world.ffprobe, videoPath);
   if (streamsOfType(video, "audio").length === 0) throw new Refusal("No audio track found.");
-  if (hasSubtitleTrack(video)) {
+  const subtitled = hasSubtitleTrack(video);
+  if (subtitled && !replace) {
     return { kind: "already-subtitled", message: `Japanese subtitles are already in ${name}` };
   }
-  // Nothing is uploaded or billed before the user has seen the name and length.
-  if (askFirst && !(await world.confirm(`Transcribe ${name} (${formatLength(video.duration)})?`))) {
-    return { kind: "cancelled", message: "" };
-  }
-
+  // Only a Video that has a Subtitle track has one to replace.
+  replace = subtitled;
   // Before the free-space check: swapping a Pending copy in needs no new
   // space, and the Pending copy itself takes some.
   const copyPath = workingCopyPath(videoPath);
-  const pending = await usablePendingCopy(world, videoPath, video, copyPath);
+  const pending = await usablePendingCopy(world, videoPath, video, copyPath, replace);
   if (pending) {
     await status("muxing");
-    await swapOrKeep(copyPath, videoPath, world, status);
-    return added(name, pending.dataRemoved);
+    return swapOrKeep(copyPath, videoPath, added(name, pending.dataRemoved, replace));
   }
 
   await checkFreeSpace(videoPath);
@@ -147,24 +158,23 @@ async function transcribeVideo(
   await Bun.write(srt, buildSrt(words));
 
   await status("muxing");
-  const made = await makeWorkingCopy(world, videoPath, video, srt, copyPath);
-  await swapOrKeep(copyPath, videoPath, world, status);
-  return added(name, made.dataRemoved);
+  const made = await makeWorkingCopy(world, videoPath, video, srt, copyPath, replace);
+  return swapOrKeep(copyPath, videoPath, added(name, made.dataRemoved, replace));
 }
 
-function added(name: string, dataRemoved: boolean): Outcome {
-  const message = `Japanese subtitles added to ${name}`;
+function added(name: string, dataRemoved: boolean, replaced: boolean): Outcome {
+  const message = replaced ? `Japanese subtitles replaced in ${name}` : `Japanese subtitles added to ${name}`;
   return { kind: "done", message: dataRemoved ? `${message}. Some extra camera data was removed.` : message };
 }
 
 // A Pending copy left by an earlier locked swap is used when it passes the
 // check against the Video and is newer than it. Anything else in its place is
 // stale or incomplete and is deleted.
-async function usablePendingCopy(world: World, videoPath: string, video: VideoInfo, copyPath: string) {
+async function usablePendingCopy(world: World, videoPath: string, video: VideoInfo, copyPath: string, replace: boolean) {
   if (!existsSync(copyPath)) return null;
   try {
     const [check, copyStat, videoStat] = await Promise.all([
-      checkCopy(world.ffprobe, video, copyPath, true),
+      checkCopy(world.ffprobe, video, copyPath, true, replace),
       stat(copyPath),
       stat(videoPath),
     ]);
@@ -175,35 +185,29 @@ async function usablePendingCopy(world: World, videoPath: string, video: VideoIn
   return null;
 }
 
-// Replaces the Video with the checked copy. If the Video stays locked, the
-// copy is kept as a Pending copy for the next Transcription.
-async function swapOrKeep(copyPath: string, videoPath: string, world: World, status: ReportState) {
+// Replaces the Video with the checked copy. If the Video is in use (Windows
+// won't replace a file VLC is playing), the copy is kept as a Pending copy.
+async function swapOrKeep(copyPath: string, videoPath: string, added: Outcome): Promise<Outcome> {
   let swapped;
   try {
-    swapped = await swapIn(copyPath, videoPath, world.wait, () => status("waiting-for-unlock"));
+    swapped = await swapIn(copyPath, videoPath);
   } catch (error) {
     await rm(copyPath, { force: true });
     throw error;
   }
-  if (swapped === "locked") throw new Refusal("Close the video in VLC, then choose it again in Kakitori.");
+  if (swapped === "locked") {
+    return { kind: "pending", message: "The subtitles are ready. Click Reload video to add them." };
+  }
+  return added;
 }
 
 // The working copy needs as much room as the Video itself.
 async function checkFreeSpace(videoPath: string) {
   const [disk, file] = await Promise.all([statfs(dirname(videoPath)), stat(videoPath)]);
-  if (disk.bavail * disk.bsize < file.size) throw new Refusal("Not enough free space next to the Video.");
+  if (disk.bavail * disk.bsize < file.size) throw new Refusal("Not enough free space next to the video.");
 }
 
 function workingCopyPath(videoPath: string) {
   const ext = extname(videoPath);
   return join(dirname(videoPath), `${basename(videoPath, ext)}.kakitori.tmp${ext}`);
-}
-
-// 0:03, 12:05, 1:02:05
-function formatLength(seconds: number) {
-  const total = Math.round(seconds);
-  const h = Math.floor(total / 3600);
-  const m = Math.floor(total / 60) % 60;
-  const ss = String(total % 60).padStart(2, "0");
-  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 }

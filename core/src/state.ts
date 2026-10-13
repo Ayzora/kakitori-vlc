@@ -3,12 +3,13 @@
 import { appendFile, rename } from "node:fs/promises";
 import { join } from "node:path";
 
-export type State = "extracting" | "transcribing" | "muxing" | "waiting-for-unlock" | "done" | "error";
+export type State = "extracting" | "transcribing" | "muxing" | "pending" | "done" | "error";
 
 export type Status = {
   id: string;
   state: State;
   inputPath: string;
+  videoUri: string;
   message: string;
   updatedAt: string;
 };

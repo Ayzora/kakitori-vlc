@@ -1,14 +1,15 @@
 // Test helpers: sample Videos made with ffmpeg, a fake ElevenLabs reached
-// through fetch, and a World whose popup and waiting are recorded.
+// through fetch, and a World whose waiting and notifications are recorded.
 
 import { $ } from "bun";
 import { existsSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import type { Fetch } from "../src/scribe.ts";
 import type { Word } from "../src/srt.ts";
-import type { World } from "../src/transcription.ts";
+import type { TranscriptionRequest, World } from "../src/transcription.ts";
 
 const vendor = join(import.meta.dir, "..", "vendor", "ffmpeg");
 const exe = process.platform === "win32" ? ".exe" : "";
@@ -140,41 +141,35 @@ export function timeoutError() {
   return new DOMException("The operation timed out.", "TimeoutError");
 }
 
-// confirmations records each "Transcribe …?" question; answer sets the reply.
-export type TestWorld = World & { popups: string[]; waits: number[]; confirmations: string[]; answer: boolean };
+export type TestWorld = World & { waits: number[]; notifications: string[] };
 
 export async function makeWorld(fetch: Fetch, apiKey = "test-key"): Promise<TestWorld> {
   const stateDir = await tempDir();
   await mkdir(stateDir, { recursive: true });
   await Bun.write(join(stateDir, "config.json"), JSON.stringify({ apiKey }));
-  const popups: string[] = [];
   const waits: number[] = [];
-  const confirmations: string[] = [];
-  const world: TestWorld = {
+  const notifications: string[] = [];
+  return {
     stateDir,
     ffmpeg: tools.ffmpeg,
     ffprobe: tools.ffprobe,
     env: {},
     fetch,
-    popup: async (message) => {
-      popups.push(message);
-    },
     wait: async (ms) => {
       waits.push(ms);
     },
-    chooseVideo: async () => {
-      throw new Error("this test didn't expect the file picker");
+    notify: async (message) => {
+      notifications.push(message);
     },
-    confirm: async (question) => {
-      confirmations.push(question);
-      return world.answer;
-    },
-    popups,
     waits,
-    confirmations,
-    answer: true,
+    notifications,
   };
-  return world;
+}
+
+// A request for `video` as the extension makes it for the Video VLC is
+// playing; replace for Transcribe again.
+export function requestFor(video: string, id = "t1", replace = false): TranscriptionRequest {
+  return { id, videoPath: video, videoUri: pathToFileURL(video).href, replace };
 }
 
 export async function readStatus(world: World) {
