@@ -18,6 +18,8 @@ jobs:
   build:
     needs: test
     strategy:
+      # Let every platform finish, so one failure doesn't hide another.
+      fail-fast: false
       matrix:
         include:
           - platform: windows-x64
@@ -46,6 +48,9 @@ jobs:
       - name: Install dependencies
         working-directory: core
         run: bun install --frozen-lockfile
+      # bun build doesn't create the output folder on Windows.
+      - name: Create the package folder
+        run: mkdir -p package/bin
       - name: Compile the core
         working-directory: core
         run: >
