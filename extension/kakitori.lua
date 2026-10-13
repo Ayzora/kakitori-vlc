@@ -20,7 +20,7 @@ deactivates the extension again, so the next click opens the window again.
 VLC 3 on macOS never shows an extension's own submenu, so there is none.
 --]]
 
-local NOT_STARTED = "Kakitori didn't start. Your antivirus or macOS security may have blocked it. See the README."
+local NOT_STARTED = "Kakitori didn't start. Your antivirus or macOS security may have blocked it. On a Mac, click Open Anyway in System Settings > Privacy & Security. On Windows, allow kakitori.exe in SmartScreen or your antivirus."
 local STATE_NAMES = {
   extracting = "Extracting the audio",
   transcribing = "Transcribing",

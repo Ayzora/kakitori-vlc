@@ -53,26 +53,6 @@ On Windows, VLC locks the video while it plays, so Kakitori can't add the subtit
 - iCloud Drive, network shares and exFAT drives aren't supported yet.
 - If you move or rename the video while it's being transcribed, the transcription fails and the attempt is still billed. Open it from its new place and try again.
 
-## Troubleshooting
-
-**Kakitori isn't in VLC's menu.** Quit VLC completely and reopen it. If it's still missing, run the install command again.
-
-**"Kakitori didn't start".** Kakitori isn't signed by Apple or Microsoft, so your system may have blocked it. On macOS, go to System Settings > Privacy & Security and click Open Anyway next to kakitori. On Windows, allow kakitori.exe in SmartScreen or your antivirus (it's in `%APPDATA%\vlc\kakitori\bin`).
-
-**"API key rejected" or "No API key saved".** Click Change API key in the Kakitori window and paste a valid key.
-
-**Errors about credits or limits** come from ElevenLabs. Check your plan.
-
-**"Couldn't reach ElevenLabs" or "ElevenLabs had a problem".** Kakitori already retried a few times. Try again later.
-
-**"Couldn't add the subtitles to this file" or "Something went wrong".** Your video is untouched. The details are in `log.txt` in Kakitori's folder.
-
-**A file named `<name>.kakitori.tmp.<ext>` next to your video** (Windows) is a finished copy waiting for Reload video. If you don't need it, you can delete it.
-
-## Where things live
-
-Kakitori's folder is `~/Library/Application Support/org.videolan.vlc/kakitori` on macOS and `%APPDATA%\vlc\kakitori` on Windows. It holds your key (`config.json`), the last status (`status.json`), a log of every transcription that never includes your key (`log.txt`), and the programs (`bin`). The extension itself is `kakitori.lua` in VLC's `lua/extensions` folder.
-
 ## Uninstall
 
 macOS:
