@@ -1,6 +1,6 @@
 import { $ } from "bun";
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
-import { appendFileSync, existsSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, renameSync } from "node:fs";
 import { chmod, copyFile, rename, rm, stat, utimes } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -382,6 +382,29 @@ describe("a Video that already has a Subtitle track", () => {
     expect(elevenLabs.calls).toHaveLength(1);
     expect(await readStatus(world)).toMatchObject({ id: "t2", state: "done", message });
     expect(await Bun.file(video).bytes()).toEqual(bytes);
+  });
+});
+
+describe("a Video moved while it is transcribed", () => {
+  test("says so, leaves the moved Video untouched and nothing behind", async () => {
+    const dir = await tempDir();
+    const video = await makeVideo(dir, "lesson.mp4");
+    const moved = join(await tempDir(), "lesson.mp4");
+    const elevenLabs = await fakeElevenLabs(() => {
+      renameSync(video, moved);
+      return wordsReply();
+    });
+    const bytes = await Bun.file(video).bytes();
+    const world = await makeWorld(elevenLabs.fetch);
+
+    const outcome = await runTranscription(requestFor(video), world);
+
+    const message = "The video was moved or deleted during the transcription. Open it again in VLC and transcribe it again.";
+    expect(outcome).toEqual({ kind: "error", message });
+    expect(world.notifications).toEqual([message]);
+    expect(await readStatus(world)).toMatchObject({ state: "error", message });
+    expect(await Bun.file(moved).bytes()).toEqual(bytes);
+    expect(await filesIn(dir)).toEqual([]);
   });
 });
 

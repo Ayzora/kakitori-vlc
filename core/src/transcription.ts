@@ -39,6 +39,8 @@ export type Outcome = { kind: "done" | "already-subtitled" | "pending" | "error"
 type ReportState = (state: State) => Promise<void>;
 
 const SUPPORTED = new Set([".mp4", ".m4v", ".mov"]);
+// The user moved, renamed or deleted the Video while it was being transcribed.
+const MOVED = "The video was moved or deleted during the transcription. Open it again in VLC and transcribe it again.";
 const MAX_SECONDS = 10 * 60 * 60;
 const MAX_UPLOAD_BYTES = 3 * 1024 ** 3;
 
@@ -158,6 +160,7 @@ async function transcribeVideo(
   await Bun.write(srt, buildSrt(words));
 
   await status("muxing");
+  if (!existsSync(videoPath)) throw new Refusal(MOVED);
   const made = await makeWorkingCopy(world, videoPath, video, srt, copyPath, replace);
   return swapOrKeep(copyPath, videoPath, added(name, made.dataRemoved, replace));
 }
@@ -193,7 +196,7 @@ async function swapOrKeep(copyPath: string, videoPath: string, added: Outcome): 
     swapped = await swapIn(copyPath, videoPath);
   } catch (error) {
     await rm(copyPath, { force: true });
-    throw error;
+    throw existsSync(videoPath) ? error : new Refusal(MOVED, { cause: error });
   }
   if (swapped === "locked") {
     return { kind: "pending", message: "The subtitles are ready. Click Reload video to add them." };
