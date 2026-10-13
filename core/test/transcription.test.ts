@@ -335,7 +335,7 @@ describe.skipIf(process.platform !== "win32")("a Video locked by another program
     holder.kill();
     await holder.exited;
 
-    expect(first).toEqual({ kind: "error", message: "Close the video in VLC, then click Transcribe again." });
+    expect(first).toEqual({ kind: "error", message: "Close the video in VLC, then choose it again in Kakitori." });
     expect(world.waits).toEqual(Array(24).fill(5000));
     expect(new Set(states)).toEqual(new Set(["waiting-for-unlock"]));
     expect(await filesIn(dir)).toEqual(["lesson.kakitori.tmp.mp4", "lesson.mp4"]);

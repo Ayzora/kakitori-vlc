@@ -79,7 +79,7 @@ The user reopens the Video and picks the Japanese track under Subtitle → Sub T
 ### Locked Video (Windows)
 
 44. As a Windows user who left the Video playing, I want Kakitori to keep trying to replace it for 2 minutes, so that briefly closing it is enough.
-45. As that user, I want Kakitori to keep the finished copy as a Pending copy and tell me "Close the video in VLC, then click Transcribe again." if the Video stays locked, so that the paid work isn't lost.
+45. As that user, I want Kakitori to keep the finished copy as a Pending copy and tell me "Close the video in VLC, then choose it again in Kakitori." if the Video stays locked, so that the paid work isn't lost.
 46. As that user, I want my next Transcription of that Video to use the Pending copy without contacting ElevenLabs, even if I transcribed other Videos in between, so that I'm not charged again.
 47. As a user who changed the Video after a Pending copy was made, I want the stale Pending copy thrown away and a fresh Transcription done, so that I never get subtitles for an old version.
 
@@ -188,7 +188,7 @@ Modules behind the runner:
 - **Check:** with ffprobe, the working copy must have every stream of the Video with the same codec, plus exactly one new subtitle stream, and a duration within 1 second of the Video's. Only after a data-stream-dropping retry may data streams be missing.
 - **Swap:**
   - Renames the working copy over the Video. After the rename, it puts back the Video's earlier modified time and, on macOS, its permissions.
-  - If the Video is locked, status becomes `waiting-for-unlock` and the rename is retried every 5 seconds for 2 minutes. After that, the working copy stays as a **Pending copy** and the Transcription ends with "Close the video in VLC, then click Transcribe again."
+  - If the Video is locked, status becomes `waiting-for-unlock` and the rename is retried every 5 seconds for 2 minutes. After that, the working copy stays as a **Pending copy** and the Transcription ends with "Close the video in VLC, then choose it again in Kakitori."
 - **Pending copy detection** (during validation): if `<name>.kakitori.tmp.<ext>` exists next to the Video, it has the Subtitle track, it passes the Check against the Video, and it is newer than the Video, then go straight to the Swap with no ElevenLabs call. Otherwise delete it and transcribe normally. A Pending copy can't record whether it came from the camera-data retry, so its Check always allows missing data streams.
 - **Validation order:**
   1. The file exists.
@@ -212,7 +212,7 @@ Modules behind the runner:
 | --- | --- |
 | Success | "Japanese subtitles added to \<name\>" (plus "Some extra camera data was removed." if data streams were dropped) |
 | Already subtitled | "Japanese subtitles are already in \<name\>" |
-| Locked after 2 minutes | "Close the video in VLC, then click Transcribe again." |
+| Locked after 2 minutes | "Close the video in VLC, then choose it again in Kakitori." |
 | Bad key | "API key rejected. Use Change API key." |
 | Quota or rate limit | ElevenLabs' own text |
 | Timeout | "ElevenLabs took too long. Try again later." |

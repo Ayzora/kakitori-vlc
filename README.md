@@ -1,94 +1,113 @@
 # Kakitori for VLC
 
-Kakitori adds Japanese subtitles to your own Japanese videos, right from VLC. Open Kakitori from VLC's Extensions menu, choose an MP4, M4V or MOV, click **Start**, and keep watching. Kakitori sends the video's audio to [ElevenLabs](https://elevenlabs.io) Scribe v2, builds Japanese subtitles from the result, and adds them as a subtitle track **inside the same video file**. A popup tells you when it's done.
+**Japanese subtitles for your own Japanese videos, made from inside VLC.**
 
-The subtitles then show up in VLC (Subtitle → Sub Track → Japanese), QuickTime, the Apple TV app and Films & TV, and they travel with the file wherever you copy it.
+Pick a video, click **Start**, and keep watching. Kakitori sends the video's audio to [ElevenLabs](https://elevenlabs.io) Scribe v2, turns the result into readable Japanese subtitles, and adds them as a subtitle track **inside the same video file**. A popup tells you when it's done.
 
-Works with VLC 3.0.x on Windows x64 and macOS (Apple Silicon and Intel).
+The subtitles then work everywhere the file goes: VLC, QuickTime, the Apple TV app, and Films & TV on Windows.
 
-## Before you start: what you're agreeing to
+- Works with **VLC 3.0.x** on **macOS** (Apple Silicon and Intel) and **Windows x64**.
+- Supports **MP4, M4V and MOV** videos on your computer's own drive.
 
-- **You bring your own ElevenLabs API key**, and every transcription is billed to your ElevenLabs account. Get a key at [elevenlabs.io](https://elevenlabs.io/app/settings/api-keys).
-- **Your video's audio is uploaded to ElevenLabs** to be transcribed. Only the audio is sent, never the picture. See [ElevenLabs' privacy policy](https://elevenlabs.io/privacy-policy).
-- **Your API key is stored in plain text** on your computer, in `config.json` inside Kakitori's folder (see [Where things live](#where-things-live)). On macOS only your user account can read that file.
-- **Kakitori rewrites your video file in place.** It adds one subtitle track and keeps everything else: the picture, every audio track, existing subtitles, the title and the modified date. Some details are lost:
-  - On macOS, Finder tags, Finder comments and the file's creation date are lost.
-  - If a video holds extra camera data that can't be copied (some iPhone clips do), that data is removed, and the popup says so.
-- **A video is never transcribed twice.** Once it has Kakitori's Japanese track, clicking Transcribe again just tells you the subtitles are already there.
-- **A transcription that times out may still be billed.** If ElevenLabs takes longer than 15 minutes, Kakitori gives up and doesn't retry, because ElevenLabs may still finish (and charge for) the first attempt.
-- **Local drives only.** v1 supports videos on your computer's own drive, not iCloud Drive, network shares or exFAT external drives.
+## What you need
+
+1. **VLC 3.0.x** from [videolan.org](https://www.videolan.org/vlc/).
+2. **An ElevenLabs API key.** Make one at [elevenlabs.io → API keys](https://elevenlabs.io/app/settings/api-keys). Transcriptions are billed to your ElevenLabs account.
 
 ## Install
 
-**macOS** (in Terminal):
+**macOS:** open **Terminal** and paste:
 
 ```sh
-curl -fsSL https://github.com/<owner>/kakitori-vlc/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/Ayzora/kakitori-vlc/releases/latest/download/install.sh | sh
 ```
 
-**Windows** (in PowerShell):
+**Windows:** open **PowerShell** and paste:
 
 ```powershell
-irm https://github.com/<owner>/kakitori-vlc/releases/latest/download/install.ps1 | iex
+irm https://github.com/Ayzora/kakitori-vlc/releases/latest/download/install.ps1 | iex
 ```
 
-The installer:
+When it prints **Done**, quit VLC completely (macOS: **⌘Q**) and open it again.
 
-1. Downloads the build for your computer and checks it against the release's checksums.
-2. Copies the extension into VLC's extensions folder.
-3. Copies Kakitori's programs (the Kakitori core, ffmpeg and ffprobe) into Kakitori's folder.
+To upgrade later, run the same command again. Your saved API key is kept.
 
-Then restart VLC.
+<details>
+<summary>What the installer does</summary>
 
-Run the same command again to upgrade. Your saved API key is kept.
+1. Downloads the build for your computer and checks it against the release's checksums. If anything doesn't match, it stops and installs nothing.
+2. Copies the extension, `kakitori.lua`, into VLC's extensions folder.
+3. Copies Kakitori's programs into Kakitori's own folder: the Kakitori core, plus ffmpeg and ffprobe, which handle the video files.
+4. On macOS, clears the "downloaded from the internet" flag so Gatekeeper doesn't block those programs.
 
-### Security warnings
+</details>
 
-Kakitori's programs aren't signed by Apple or Microsoft.
+## Your first transcription
 
-- **macOS:** the installer clears the download "quarantine" flag so Gatekeeper doesn't block the programs. If macOS still refuses to open `kakitori`, open System Settings → Privacy & Security and choose **Open Anyway**.
-- **Windows:** SmartScreen or your antivirus may warn about or block `kakitori.exe`. If **Show last status** says "Kakitori didn't start", allow `kakitori.exe` in your antivirus (it lives in `%APPDATA%\vlc\kakitori\bin`) and try again.
+1. Open the Kakitori window:
+   - **macOS:** **VLC → Extensions → Kakitori**
+   - **Windows:** **View → Kakitori**
+2. Click **Choose video…**.
+3. **First time only:** paste your ElevenLabs API key and click **Save**.
+4. In the Open window, pick your video. On a Mac you can also drag it in from Finder.
+5. Kakitori asks **"Transcribe <name> (length)?"**. Click **Start**.
+6. Keep using VLC. When the popup says **"Japanese subtitles added to …"**, open the video and choose **Subtitle → Sub Track → Japanese**.
 
-## Use
+The Kakitori window has two more buttons:
 
-1. Click **View → Kakitori** (macOS: **VLC → Extensions → Kakitori**). The Kakitori window opens.
-2. Click **Choose video…**. The first time, paste your ElevenLabs API key and click **Save** first.
-3. In the Open window, pick an MP4, M4V or MOV. On a Mac you can also drag the video from Finder into the Open window.
-4. Check the file name and length, then click **Start**. VLC stays usable while Kakitori works.
-5. When the popup says "Japanese subtitles added to …", open the video and pick the Japanese track under **Subtitle → Sub Track**.
+- **Change API key:** paste a new key, for example after "API key rejected".
+- **Show last status:** what Kakitori is doing right now, or how the last transcription ended.
 
-If the video is playing in VLC on Windows, see [If the video is open in VLC](#if-the-video-is-open-in-vlc-windows).
+## Good to know
 
-The Kakitori window also has:
+- **Your video file is changed in place.** Kakitori adds one subtitle track and keeps everything else: picture, all audio tracks, existing subtitles, title and modified date. Before writing anything, it checks that the new file is complete. Two things can be lost:
+  - **macOS:** Finder tags, Finder comments and the file's creation date.
+  - **Some iPhone videos:** extra camera data that can't be copied. When that happens, the popup tells you.
+- **Each video is transcribed once.** If a video already has Kakitori's Japanese track, Kakitori tells you instead of transcribing it again, so you're never charged twice.
+- **Only the audio is uploaded** to ElevenLabs, never the picture. See [ElevenLabs' privacy policy](https://elevenlabs.io/privacy-policy).
+- **Your API key is stored in plain text** in `config.json` in Kakitori's folder (see [Where things live](#where-things-live)). On macOS only your user account can read it.
+- **Timeouts:** if ElevenLabs takes more than 15 minutes, Kakitori stops and doesn't retry. ElevenLabs may still finish, and charge for, that attempt.
+- **Local drives only:** iCloud Drive, network shares and exFAT external drives aren't supported yet.
 
-- **Change API key**: replace a rejected or rotated key.
-- **Show last status**: what Kakitori is doing now, or how the last transcription ended.
+## If something goes wrong
 
-### If the video is open in VLC (Windows)
+### Kakitori isn't in VLC's menu
 
-Windows doesn't let Kakitori replace a video that VLC has open. Kakitori waits up to 2 minutes for you to close it. If it's still open, Kakitori keeps the finished file next to your video as `<name>.kakitori.tmp.<ext>`, which is as large as the video, and says "Close the video in VLC, then click Transcribe again." Do that, and Kakitori swaps the finished file in without contacting ElevenLabs again. If you never come back for it, you can delete that file yourself.
+Quit VLC completely and open it again. If it's still missing, run the install command again.
 
-## What the messages mean
+### "Kakitori didn't start"
+
+Kakitori's programs aren't signed by Apple or Microsoft, so your system may block them.
+
+- **macOS:** open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to `kakitori`.
+- **Windows:** SmartScreen or your antivirus may have blocked `kakitori.exe`. Allow it (it's in `%APPDATA%\vlc\kakitori\bin`) and try again.
+
+### The video is open in VLC (Windows)
+
+Windows doesn't let Kakitori replace a video that VLC has open. Kakitori waits up to 2 minutes for you to close it. If it's still open, Kakitori keeps the finished file next to your video, as `<name>.kakitori.tmp.<ext>`, and asks you to close the video and choose it again. Do that, and Kakitori puts the finished file in place **without contacting ElevenLabs again**. If you never come back for it, you can delete that file.
+
+### Messages
 
 | Message | What to do |
 | --- | --- |
 | API key rejected. Use Change API key. | Paste a valid key with **Change API key**. |
-| *(ElevenLabs' own text about credits or limits)* | Check your ElevenLabs plan. Kakitori doesn't retry these. |
-| ElevenLabs can't transcribe videos longer than 10 hours. / The audio is larger than ElevenLabs' 3 GB upload limit. | Split the video; nothing was uploaded. |
-| Couldn't reach ElevenLabs. Check your internet connection. | Kakitori already retried 3 times. Try again later. |
-| ElevenLabs had a problem. Try again later. | ElevenLabs' servers failed 4 times in a row. |
-| ElevenLabs took too long. Try again later. | No answer within 15 minutes. This attempt may still be billed. |
-| No audio track found. | The video has no sound to transcribe. |
-| The video file can't be found. | It was moved, renamed or deleted. Choose it again. |
 | No API key saved. Use Change API key. | Save your key with **Change API key**. |
-| Couldn't add the subtitles to this file. | ffmpeg couldn't write a complete copy. Your video is untouched; details are in `log.txt`. |
-| Something went wrong. See the log for details. | Unexpected error; your video is untouched. Details are in `log.txt`. |
+| *ElevenLabs' own text about credits or limits* | Check your ElevenLabs plan. |
+| Couldn't reach ElevenLabs. Check your internet connection. | Kakitori already retried 3 times. Try again later. |
+| ElevenLabs had a problem. Try again later. | ElevenLabs failed 4 times in a row. Try again later. |
+| ElevenLabs took too long. Try again later. | No answer within 15 minutes. That attempt may still be billed. |
+| ElevenLabs can't transcribe videos longer than 10 hours. | Split the video. Nothing was uploaded. |
+| The audio is larger than ElevenLabs' 3 GB upload limit. | Split the video. Nothing was uploaded. |
+| No audio track found. | The video has no sound to transcribe. |
 | Subtitles can't be added to this file type. | Only MP4, M4V and MOV are supported. |
+| The video file can't be found. | It was moved, renamed or deleted. Choose it again. |
 | Not enough free space next to the Video. | Kakitori needs free space as large as the video while it works. |
-| A transcription is already running. | Wait for the current one to finish. |
-| Kakitori is still starting the last transcription. … | Wait a few seconds and click Transcribe again. |
-| Close the video in VLC, then click Transcribe again. | See [If the video is open in VLC](#if-the-video-is-open-in-vlc-windows). |
-| Kakitori didn't start. … | See [Security warnings](#security-warnings). |
+| Couldn't add the subtitles to this file. | Your video is untouched. Details are in `log.txt`. |
+| Something went wrong. See the log for details. | Your video is untouched. Details are in `log.txt`. |
+| A transcription is already running. | Wait for it to finish. |
+| Kakitori is still starting the last transcription. … | Wait a few seconds and try again. |
+| Close the video in VLC, then choose it again in Kakitori. | See [The video is open in VLC](#the-video-is-open-in-vlc-windows). |
+| Kakitori didn't start. … | See ["Kakitori didn't start"](#kakitori-didnt-start). |
 
 ## Where things live
 
@@ -97,43 +116,51 @@ Windows doesn't let Kakitori replace a video that VLC has open. Kakitori waits u
 | Extension | `~/Library/Application Support/org.videolan.vlc/lua/extensions/kakitori.lua` | `%APPDATA%\vlc\lua\extensions\kakitori.lua` |
 | Kakitori's folder | `~/Library/Application Support/org.videolan.vlc/kakitori/` | `%APPDATA%\vlc\kakitori\` |
 
-Kakitori's folder holds `config.json` (your API key), `status.json` (the last status), `log.txt` (a run log that never contains your key) and `bin/` (the programs).
+Kakitori's folder holds:
+
+- `config.json`: your API key
+- `status.json`: the last status
+- `log.txt`: a log of every transcription, which never contains your key
+- `bin/`: the programs
 
 ## Uninstall
 
 **macOS:**
 
 ```sh
-curl -fsSL https://github.com/<owner>/kakitori-vlc/releases/latest/download/uninstall.sh | sh
+curl -fsSL https://github.com/Ayzora/kakitori-vlc/releases/latest/download/uninstall.sh | sh
 ```
 
 **Windows:**
 
 ```powershell
-irm https://github.com/<owner>/kakitori-vlc/releases/latest/download/uninstall.ps1 | iex
+irm https://github.com/Ayzora/kakitori-vlc/releases/latest/download/uninstall.ps1 | iex
 ```
 
-This stops any running transcription, then removes the extension and Kakitori's whole folder, including your saved API key. Subtitle tracks already added to your videos stay in those files.
+This stops any running transcription, then removes the extension and Kakitori's folder, including your saved API key. Subtitle tracks already added to your videos stay in them.
 
 ## For developers
 
-The core is TypeScript, run and compiled with [Bun](https://bun.com):
+The core program is TypeScript, run and compiled with [Bun](https://bun.com). The extension is Lua for VLC 3.
 
 ```sh
 cd core
 bun install
-bun run fetch-ffmpeg        # static ffmpeg + ffprobe for tests, into core/vendor
+bun run fetch-ffmpeg        # static ffmpeg + ffprobe for the tests, into core/vendor
 bun test
-bun check
-bun src/index.ts video.mp4  # transcribe one video from a terminal (ELEVENLABS_API_KEY or the saved key)
+bun check                   # type check
+bun run build               # compiled program in core/dist
+bun src/index.ts video.mp4  # transcribe one video from a terminal, without the picker
 ```
 
-The installers can be tested against a local build by setting `KAKITORI_BASE_URL` to a `file://` folder that holds the zip and `SHA256SUMS.txt`.
-
-Pushing a tag such as `v1.0.0` builds all three platforms and publishes a GitHub Release (`.github/workflows/release.yml`).
-
-Design notes: `CONTEXT.md` (terms), `docs/adr/` (decisions), and the spec in `.scratch/kakitori-vlc-v1/spec.md`.
+- **Test the installer with a local build:** set `KAKITORI_BASE_URL` to a `file://` folder that holds the platform zip and `SHA256SUMS.txt`.
+- **Release:** push a tag such as `v1.0.0`. GitHub Actions tests on macOS and Windows, builds all three platforms, and publishes the release (`.github/workflows/release.yml`).
+- **Design notes:**
+  - `CONTEXT.md`: the words we use
+  - `docs/adr/`: decisions and why
+  - `.scratch/kakitori-vlc-v1/spec.md`: the spec
+  - `docs/design-spec-v1.md`: the original design
 
 ## License
 
-MIT; see [LICENSE](LICENSE). Kakitori bundles ffmpeg; see [THIRD_PARTY.md](THIRD_PARTY.md).
+MIT, see [LICENSE](LICENSE). Kakitori bundles ffmpeg (GPL); see [THIRD_PARTY.md](THIRD_PARTY.md).

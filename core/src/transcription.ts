@@ -185,7 +185,7 @@ async function swapOrKeep(copyPath: string, videoPath: string, world: World, sta
     await rm(copyPath, { force: true });
     throw error;
   }
-  if (swapped === "locked") throw new Refusal("Close the video in VLC, then click Transcribe again.");
+  if (swapped === "locked") throw new Refusal("Close the video in VLC, then choose it again in Kakitori.");
 }
 
 // The working copy needs as much room as the Video itself.
