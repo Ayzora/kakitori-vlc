@@ -38,6 +38,10 @@ local function is_windows()
   return package.config:sub(1, 1) == "\\"
 end
 
+local function is_mac()
+  return vlc.config.userdatadir():find("/Library/Application Support/", 1, true) ~= nil
+end
+
 local function sep()
   return is_windows() and "\\" or "/"
 end
@@ -224,7 +228,7 @@ local function open_window(title)
 end
 
 local function show_window(row)
-  dialog:add_label(string.rep("\194\160", 120), 1, row, is_windows() and 2 or 1, 1, WINDOW_WIDTH, ROW_HEIGHT)
+  dialog:add_label(string.rep("\194\160", 120), 1, row, is_mac() and 1 or 2, 1, WINDOW_WIDTH, ROW_HEIGHT)
   dialog:show()
 end
 

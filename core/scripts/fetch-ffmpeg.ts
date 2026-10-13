@@ -1,7 +1,7 @@
 import { $ } from "bun";
 import { mkdir, mkdtemp, readdir, rm, chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 
 type Archive = { url: string; sha256: string };
 
@@ -28,6 +28,12 @@ const TARGETS: Record<string, Archive[]> = {
       sha256: "2322438ed2f6319a691291b247d09c69dcaa3a982460d1f269a7e1af335cfdfd",
     },
   ],
+  "linux-x64": [
+    {
+      url: "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-30-13-08/ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0.tar.xz",
+      sha256: "68ee646831adaae2495618346f3bba94ff207ff83bbd34d643e7004730d66269",
+    },
+  ],
   "windows-x64": [
     {
       url: "https://github.com/GyanD/codexffmpeg/releases/download/9.0.2/ffmpeg-9.0.2-essentials_build.zip",
@@ -38,6 +44,7 @@ const TARGETS: Record<string, Archive[]> = {
 
 function currentTarget() {
   if (process.platform === "win32") return "windows-x64";
+  if (process.platform === "linux") return "linux-x64";
   return process.arch === "arm64" ? "darwin-arm64" : "darwin-x64";
 }
 
@@ -75,9 +82,9 @@ try {
     if (actual !== archive.sha256) {
       throw new Error(`Checksum mismatch for ${archive.url}: got ${actual}`);
     }
-    const zip = join(work, `${i}.zip`);
-    await Bun.write(zip, bytes);
-    await $`${tar} -xf ${zip} -C ${work}`.quiet();
+    const file = join(work, `${i}-${basename(archive.url)}`);
+    await Bun.write(file, bytes);
+    await $`${tar} -xf ${file} -C ${work}`.quiet();
   }
   const ext = target.startsWith("windows") ? ".exe" : "";
   for (const tool of ["ffmpeg", "ffprobe"]) {

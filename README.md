@@ -4,7 +4,7 @@ Japanese subtitles for your own Japanese videos, made from inside VLC.
 
 Play a video, click Start and keep watching. Kakitori sends the audio to [ElevenLabs](https://elevenlabs.io) Scribe v2 and adds the result as a subtitle track inside the same video file, so the subtitles go wherever the file goes. They work in VLC, QuickTime, the Apple TV app and Films & TV.
 
-Works with VLC 3.0.x on macOS (Apple Silicon and Intel) and Windows x64, for MP4, M4V and MOV files on your own drive.
+Works with VLC 3.0.x on macOS (Apple Silicon and Intel), Windows x64 and Ubuntu x64, for MP4, M4V and MOV files on your own drive. On Ubuntu, VLC must be installed with `sudo apt install vlc`; the Snap and Flatpak versions aren't supported.
 
 ## What you need
 
@@ -25,6 +25,12 @@ On Windows, paste this into PowerShell:
 irm https://github.com/Ayzora/kakitori-vlc/releases/latest/download/install.ps1 | iex
 ```
 
+On Ubuntu, paste this into Terminal:
+
+```sh
+wget -qO- https://github.com/Ayzora/kakitori-vlc/releases/latest/download/install.sh | sh
+```
+
 When it prints "Done", quit VLC completely and open it again. Run the same command later to upgrade; your saved key is kept.
 
 The installer checks the download against the release's checksums before installing anything. On macOS it also clears the "downloaded from the internet" flag so Gatekeeper doesn't block Kakitori.
@@ -32,7 +38,7 @@ The installer checks the download against the release's checksums before install
 ## Using it
 
 1. Play your video in VLC.
-2. Open Kakitori from VLC's menu: VLC > Extensions > Kakitori on macOS, View > Kakitori on Windows.
+2. Open Kakitori from VLC's menu: VLC > Extensions > Kakitori on macOS, View > Kakitori on Windows and Ubuntu.
 3. Click Transcribe this video. The first time, paste your ElevenLabs key and click Save.
 4. Check the name and length, then click Start.
 5. Keep watching. You'll get a notification when it's done, usually within a minute or two.
@@ -48,7 +54,7 @@ On Windows, VLC locks the video while it plays, so Kakitori can't add the subtit
 
 - Kakitori changes your video file in place. It keeps the picture, every audio and subtitle track, the title and the modified date, and checks the new file is complete before replacing the old one. On macOS, Finder tags, comments and the creation date are lost. Some iPhone videos also lose extra camera data, and Kakitori tells you when that happens.
 - Only the audio is uploaded to ElevenLabs, never the picture. See their [privacy policy](https://elevenlabs.io/privacy-policy).
-- Your key is saved in plain text in Kakitori's folder. On macOS only your user account can read it.
+- Your key is saved in plain text in Kakitori's folder. On macOS and Ubuntu only your user account can read it.
 - If ElevenLabs takes longer than 15 minutes, Kakitori gives up. That attempt may still be billed.
 - iCloud Drive, network shares and exFAT drives aren't supported yet.
 - If you move or rename the video while it's being transcribed, the transcription fails and the attempt is still billed. Open it from its new place and try again.
@@ -65,6 +71,12 @@ Windows:
 
 ```powershell
 irm https://github.com/Ayzora/kakitori-vlc/releases/latest/download/uninstall.ps1 | iex
+```
+
+Ubuntu:
+
+```sh
+wget -qO- https://github.com/Ayzora/kakitori-vlc/releases/latest/download/uninstall.sh | sh
 ```
 
 This removes the extension and Kakitori's folder, including your key. Subtitles already added to your videos stay.
@@ -85,7 +97,7 @@ bun src/index.ts video.mp4  # transcribe a video from the terminal
 
 The extension only starts the work and reopens the video. It writes a request into `job.json` in Kakitori's folder and starts the core, which does the rest and reports progress in `status.json`. No file path or key ever goes on a command line.
 
-To test the installer with a local build, set `KAKITORI_BASE_URL` to a `file://` folder holding the platform zip and `SHA256SUMS.txt`. Pushing a tag such as `v1.1.0` runs the tests, builds all three platforms and publishes a release.
+To test the installer with a local build, set `KAKITORI_BASE_URL` to a `file://` folder holding the platform zip and `SHA256SUMS.txt`. Pushing a tag such as `v1.1.0` runs the tests, builds all four platforms and publishes a release.
 
 ## License
 

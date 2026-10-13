@@ -31,6 +31,10 @@ jobs:
             runner: macos-latest
             bun-target: bun-darwin-x64
             ffmpeg-target: darwin-x64
+          - platform: linux-x64
+            runner: ubuntu-latest
+            bun-target: bun-linux-x64
+            ffmpeg-target: linux-x64
     runs-on: ${{ matrix.runner }}
     defaults:
       run:

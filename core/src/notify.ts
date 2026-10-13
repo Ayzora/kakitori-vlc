@@ -14,7 +14,14 @@ export async function notify(message: string): Promise<void> {
     const { cmd, env } = windowsNotification(message);
     const result = await runProcess(cmd, env);
     if (result.code !== 0) throw new Error(`PowerShell exited with ${result.code}: ${result.stderr.trim()}`);
+  } else if (process.platform === "linux") {
+    const result = await runProcess(linuxNotification(message));
+    if (result.code !== 0) throw new Error(`notify-send exited with ${result.code}: ${result.stderr.trim()}`);
   }
+}
+
+export function linuxNotification(message: string) {
+  return ["notify-send", "--app-name=Kakitori", "--", "Kakitori", message];
 }
 
 const WINDOWS_SCRIPT =

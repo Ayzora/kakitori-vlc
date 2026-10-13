@@ -16,7 +16,9 @@ function stateDir() {
   const vlcUserData =
     process.platform === "win32"
       ? join(process.env.APPDATA ?? homedir(), "vlc")
-      : join(homedir(), "Library", "Application Support", "org.videolan.vlc");
+      : process.platform === "linux"
+        ? join(process.env.XDG_DATA_HOME || join(homedir(), ".local", "share"), "vlc")
+        : join(homedir(), "Library", "Application Support", "org.videolan.vlc");
   return join(vlcUserData, "kakitori");
 }
 
