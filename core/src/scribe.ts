@@ -1,6 +1,3 @@
-// ElevenLabs Scribe v2 client. The request is the one from the Kakitori web
-// app's transcribe route; the key comes from Config.
-
 import { Refusal } from "./refusal.ts";
 import type { Word } from "./srt.ts";
 
@@ -8,7 +5,6 @@ export type Fetch = (url: string, init: RequestInit) => Promise<Response>;
 
 const ENDPOINT = "https://api.elevenlabs.io/v1/speech-to-text";
 const TIMEOUT_MS = 15 * 60 * 1000;
-// Waits before each retry of a connection failure or server error.
 const BACKOFF_MS = [2000, 4000, 8000];
 
 export async function transcribe(
@@ -48,7 +44,6 @@ async function attemptOnce(fetch: Fetch, apiKey: string, audioPath: string): Pro
     });
     text = await response.text();
   } catch (error) {
-    // A timed-out request may still be billed, so it is never retried.
     if (error instanceof DOMException && error.name === "TimeoutError") {
       return { failure: new Refusal("ElevenLabs took too long. Try again later."), retry: false };
     }
@@ -69,7 +64,6 @@ async function attemptOnce(fetch: Fetch, apiKey: string, audioPath: string): Pro
   return { failure: new Refusal(elevenLabsMessage(text), { cause }), retry: false };
 }
 
-// ElevenLabs' own one-line explanation, e.g. {"detail":{"message":"..."}}.
 function elevenLabsMessage(text: string): string {
   let message = text;
   try {

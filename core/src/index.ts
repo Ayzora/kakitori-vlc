@@ -1,12 +1,3 @@
-// kakitori, the core program.
-//
-//   kakitori          runs the Transcription the extension asked for in
-//                     job.json: the Video VLC is playing
-//   kakitori <video>  transcribes one Video from a terminal
-//
-// Installed layout: <state folder>/bin/kakitori next to ffmpeg and ffprobe,
-// where the state folder is VLC's user data folder plus "kakitori".
-
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -20,7 +11,6 @@ const exe = process.platform === "win32" ? ".exe" : "";
 const compiled = !/^bun(\.exe)?$/i.test(basename(process.execPath));
 const binDir = dirname(process.execPath);
 
-// Running from source (bun src/index.ts) uses the state folder VLC would use.
 function stateDir() {
   if (compiled) return dirname(binDir);
   const vlcUserData =
@@ -57,7 +47,6 @@ const world: World = {
   env: process.env,
   fetch: (url, init) => fetch(url, init),
   wait: (ms) => Bun.sleep(ms),
-  // A terminal run prints the message instead.
   notify: cliVideo ? async () => {} : notify,
 };
 

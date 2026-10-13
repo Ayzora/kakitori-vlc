@@ -1,9 +1,5 @@
 name: Release
 
-# Push a tag such as v1.0.0 to build all three platforms and publish a GitHub
-# Release. Every release carries the same file names, so
-# releases/latest/download/<file> always points at the newest version.
-
 on:
   push:
     tags: ["v*"]
@@ -18,7 +14,6 @@ jobs:
   build:
     needs: test
     strategy:
-      # Let every platform finish, so one failure doesn't hide another.
       fail-fast: false
       matrix:
         include:
@@ -48,7 +43,6 @@ jobs:
       - name: Install dependencies
         working-directory: core
         run: bun install --frozen-lockfile
-      # bun build doesn't create the output folder on Windows.
       - name: Create the package folder
         run: mkdir -p package/bin
       - name: Compile the core
@@ -81,8 +75,6 @@ jobs:
           mkdir dist
           for dir in artifacts/kakitori-*; do
             name="$(basename "$dir")"
-            # Artifacts lose the executable bit; the macOS installer sets it
-            # again, but keep the zips right too.
             chmod +x "$dir"/bin/*
             (cd "$dir" && zip -qr "../../dist/$name.zip" .)
           done

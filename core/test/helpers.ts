@@ -1,6 +1,3 @@
-// Test helpers: sample Videos made with ffmpeg, a fake ElevenLabs reached
-// through fetch, and a World whose waiting and notifications are recorded.
-
 import { $ } from "bun";
 import { existsSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
@@ -33,8 +30,6 @@ type VideoOptions = {
   tags?: Record<string, string>;
 };
 
-// Makes a small test Video: colour bars, sine-tone audio tracks, and optionally
-// an existing subtitle track or a timecode (data) track.
 export async function makeVideo(dir: string, name: string, options: VideoOptions = {}) {
   const seconds = options.seconds ?? 3;
   const audio = options.audio ?? [{ language: "jpn" }];
@@ -83,7 +78,6 @@ export async function probe(path: string): Promise<Probe> {
   );
 }
 
-// The text of one subtitle stream, read back out of the Video as SRT.
 export async function subtitleText(path: string, subtitleIndex: number) {
   return (
     await $`${tools.ffmpeg} -hide_banner -loglevel error -i ${path} -map 0:s:${subtitleIndex} -f srt -`.text()
@@ -94,7 +88,6 @@ export async function filesIn(dir: string) {
   return (await readdir(dir)).sort();
 }
 
-// 今日はいい天気ですね。 spoken from 0.2 s to 1.6 s.
 export const WORDS: Word[] = [
   { text: "今日は", start: 0.2, end: 0.8, type: "word" },
   { text: " ", start: 0.8, end: 0.8, type: "spacing" },
@@ -104,17 +97,12 @@ export const WORDS: Word[] = [
   { text: "ね。", start: 1.5, end: 1.6, type: "word" },
 ];
 
-// The Subtitle track the cue builder makes from WORDS: one cue, pulled 0.2 s
-// earlier (clamped at 0) and held 0.7 s after the last word. Read back out of
-// the Video, ffmpeg ends every cue with a blank line.
 export const WORDS_SRT = "1\n00:00:00,000 --> 00:00:02,300\n今日はいい天気ですね。\n\n";
 
 type Reply = Response | Error | (() => Response | Error);
 
 export type ElevenLabsCall = { url: string; headers: Headers; form: FormData; audioPath: string };
 
-// A fake ElevenLabs. Each call takes the next reply; the last reply repeats.
-// Uploaded audio is saved in its own folder so tests can probe what was sent.
 export async function fakeElevenLabs(...replies: Reply[]) {
   const dir = await tempDir();
   const calls: ElevenLabsCall[] = [];
@@ -127,7 +115,6 @@ export async function fakeElevenLabs(...replies: Reply[]) {
     let reply = replies[Math.min(calls.length - 1, replies.length - 1)]!;
     if (typeof reply === "function") reply = reply();
     if (reply instanceof Error) throw reply;
-    // clone() is typed with undici's Response, not Bun's.
     return reply.clone() as unknown as Response;
   };
   return { fetch, calls };
@@ -166,8 +153,6 @@ export async function makeWorld(fetch: Fetch, apiKey = "test-key"): Promise<Test
   };
 }
 
-// A request for `video` as the extension makes it for the Video VLC is
-// playing; replace for Transcribe again.
 export function requestFor(video: string, id = "t1", replace = false): TranscriptionRequest {
   return { id, videoPath: video, videoUri: pathToFileURL(video).href, replace };
 }
@@ -176,13 +161,6 @@ export async function readStatus(world: World) {
   return JSON.parse(await Bun.file(join(world.stateDir, "status.json")).text());
 }
 
-// An ffmpeg that misbehaves only when writing a working copy (shell script,
-// so macOS and Linux only):
-// - "refuse-data": fails while data streams are mapped, like iPhone camera
-//   data ffmpeg can't copy. When they are dropped it also stops ffmpeg from
-//   rebuilding the test Video's timecode track, which real camera data
-//   tracks don't get.
-// - "drop-audio": silently leaves the audio out of the copy.
 export async function misbehavingFfmpeg(mode: "refuse-data" | "drop-audio") {
   const path = join(await tempDir(), "ffmpeg");
   const real = JSON.stringify(tools.ffmpeg);
@@ -212,8 +190,6 @@ exec ${real} "$@"
   return path;
 }
 
-// An ffmpeg that, before each call, appends the state in status.json to a log
-// (shell script, so macOS and Linux only).
 export async function stateRecordingFfmpeg(statusPath: string, logPath: string) {
   const path = join(await tempDir(), "ffmpeg");
   await Bun.write(
@@ -226,4 +202,3 @@ exec ${JSON.stringify(tools.ffmpeg)} "$@"
   await chmod(path, 0o755);
   return path;
 }
-

@@ -1,8 +1,3 @@
-// The extension's request, in job.json: { id, createdAt, videoUri, replace },
-// where videoUri is the file:// URI of the Video VLC is playing and replace is
-// true for Transcribe again. It is deleted as soon as it is read, so a second
-// launch with nothing waiting exits silently.
-
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";

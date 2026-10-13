@@ -1,6 +1,3 @@
-// Config: the API key the extension saved in config.json, unless the
-// ELEVENLABS_API_KEY environment variable overrides it.
-
 import { join } from "node:path";
 import { Refusal } from "./refusal.ts";
 

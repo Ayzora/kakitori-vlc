@@ -1,6 +1,3 @@
-// Writes the working copy (the Video plus the Subtitle track) and checks a
-// copy before it may replace the Video.
-
 import { rm } from "node:fs/promises";
 import { extname } from "node:path";
 import { QUIET_FFMPEG, runProcess } from "./process.ts";
@@ -9,18 +6,12 @@ import { hasSubtitleTrack, inspect, isSubtitleTrack, streamsOfType, type Stream,
 
 export type Tools = { ffmpeg: string; ffprobe: string };
 
-// What checking a copy against its Video found.
 export type CopyCheck = {
-  // Every stream of the Video with the same codec, in order, plus the new
-  // Subtitle track, and the same length to within a second.
   complete: boolean;
   dataRemoved: boolean;
   description: string;
 };
 
-// Data streams may be missing only when `allowMissingData`, i.e. after the
-// camera-data retry, or for a Pending copy, which can't say whether it had one.
-// When `replace`, the Video's own Subtitle track must be gone from the copy.
 export async function checkCopy(
   ffprobe: string,
   video: VideoInfo,
@@ -45,10 +36,6 @@ export async function checkCopy(
   };
 }
 
-// Copies every stream of the Video, except its old Subtitle track when
-// `replace`, and adds the SRT as a mov_text track. If that fails (e.g. iPhone
-// camera data ffmpeg can't copy), tries once more without data streams. A
-// copy that fails the check is deleted.
 export async function makeWorkingCopy(
   tools: Tools,
   videoPath: string,
@@ -99,10 +86,8 @@ function mux(
 ) {
   const replaced = replace ? video.streams.filter(isSubtitleTrack) : [];
   const n = streamsOfType(video, "subtitle").length - replaced.length;
-  // Keep the Video's container and brand.
   const format = extname(videoPath).toLowerCase() === ".mov" ? "mov" : "mp4";
   const brand = video.tags.major_brand ? ["-brand", video.tags.major_brand] : [];
-  // ffmpeg drops the recording date when copying tags, so carry it over.
   const created = video.tags.creation_time ? ["-metadata", `creation_time=${video.tags.creation_time}`] : [];
   return runProcess([
     ffmpeg, ...QUIET_FFMPEG,

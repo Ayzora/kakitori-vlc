@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import { windowsNotification } from "../src/notify.ts";
 
 describe("the Windows notification", () => {
-  // PowerShell ends a '…' string at ’ and ‘ too, so a file name could escape it.
   const hostile = "Japanese subtitles added to Don’t; Start-Process calc; ‘x'.mp4";
 
   test("never puts the message into the PowerShell script", () => {

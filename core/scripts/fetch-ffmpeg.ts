@@ -1,11 +1,3 @@
-// Downloads the pinned static ffmpeg and ffprobe builds for one release target,
-// checks their SHA-256, and puts the two programs in a folder.
-//
-//   bun scripts/fetch-ffmpeg.ts [target] [outDir]
-//
-// target: darwin-arm64 | darwin-x64 | windows-x64 (default: this machine)
-// outDir: default vendor/ffmpeg, which the tests use.
-
 import { $ } from "bun";
 import { mkdir, mkdtemp, readdir, rm, chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -70,8 +62,6 @@ if (!archives) {
   process.exit(1);
 }
 
-// Windows' own bsdtar unpacks zip files; Git's GNU tar, often first on PATH
-// on CI runners, can't.
 const tar = process.platform === "win32" ? join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe") : "tar";
 
 const work = await mkdtemp(join(tmpdir(), "kakitori-ffmpeg-"));

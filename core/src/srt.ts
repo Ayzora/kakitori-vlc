@@ -1,6 +1,3 @@
-// Cue builder, ported unchanged from the Kakitori web app's transcribe route.
-// Its constants are the source of truth; don't re-tune them in v1.
-
 import { loadDefaultJapaneseParser } from "budoux";
 
 const MAX_CHARS_PER_LINE = 16;

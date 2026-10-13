@@ -22,7 +22,6 @@ import {
   wordsReply,
 } from "./helpers.ts";
 
-// Each test makes and remuxes real Videos; Windows CI machines are slow.
 setDefaultTimeout(30_000);
 
 describe("a successful Transcription", () => {
@@ -253,8 +252,6 @@ describe.skipIf(process.platform === "win32")("camera data and the safety check"
 });
 
 describe("a Pending copy", () => {
-  // A Pending copy as a locked swap leaves it: the finished copy of `video`
-  // sitting next to it.
   async function pendingCopyOf(video: string, modified: Date) {
     const finished = video.replace(/\.mp4$/, ".finished.mp4");
     await copyFile(video, finished);
@@ -315,9 +312,6 @@ describe("a Pending copy", () => {
 });
 
 describe.skipIf(process.platform !== "win32")("a Video locked by another program (Windows)", () => {
-  // Opens the Video the way VLC does on Windows: other programs may read it
-  // but not delete or replace it. Returns once PowerShell reports it has the
-  // file open, however long PowerShell takes to start.
   async function holdOpen(video: string) {
     const path = video.replace(/'/g, "''");
     const holder = Bun.spawn(
@@ -409,7 +403,6 @@ describe("a Video moved while it is transcribed", () => {
 });
 
 describe("Transcribe again", () => {
-  // さようなら。 spoken from 0.2 s to 1.0 s.
   const OTHER_WORDS = [{ text: "さようなら。", start: 0.2, end: 1.0, type: "word" as const }];
   const OTHER_SRT = "1\n00:00:00,000 --> 00:00:01,700\nさようなら。\n\n";
 

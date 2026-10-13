@@ -1,5 +1,3 @@
-// What ffprobe can tell about a Video or a copy of it.
-
 import { runProcess } from "./process.ts";
 
 export type Stream = {
@@ -40,17 +38,12 @@ export function streamsOfType(info: VideoInfo, type: string) {
   return info.streams.filter((s) => s.codec_type === type);
 }
 
-// Position among the audio streams of the track to transcribe: the first one
-// tagged Japanese, otherwise the first one.
 export function japaneseAudioIndex(info: VideoInfo) {
   const audio = streamsOfType(info, "audio");
   const japanese = audio.findIndex((s) => s.tags?.language === "jpn");
   return japanese === -1 ? 0 : japanese;
 }
 
-// The mark of a Video Kakitori has already subtitled: a Japanese subtitle
-// track labelled "Japanese". (A file-level tag would need ffmpeg's
-// use_metadata_tags, which hides the title from Apple's players.)
 export function hasSubtitleTrack(info: VideoInfo) {
   return info.streams.some(isSubtitleTrack);
 }

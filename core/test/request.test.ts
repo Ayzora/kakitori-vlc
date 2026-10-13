@@ -9,7 +9,6 @@ describe("the extension's request in job.json", () => {
   test("names the Video VLC is playing by its URI, Japanese name and all", async () => {
     const stateDir = await tempDir();
     const video = join(await tempDir(), "第3話 新しいルール.mp4");
-    // VLC percent-encodes everything but plain ASCII, as pathToFileURL does.
     const videoUri = pathToFileURL(video).href;
     await Bun.write(join(stateDir, "job.json"), JSON.stringify({ id: "r1", createdAt: 1, videoUri }));
 
