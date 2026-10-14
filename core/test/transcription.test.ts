@@ -95,7 +95,7 @@ describe("a successful Transcription", () => {
     expect(elevenLabs.calls[0]!.headers.get("xi-api-key")).toBe("sk-from-env");
   });
 
-  for (const name of ["clip.mov", "clip.m4v", "CLIP.MP4"]) {
+  for (const name of ["clip.mov", "clip.m4v", "CLIP.MP4", "clip.mkv"]) {
     test(`keeps the container of ${name}`, async () => {
       const dir = await tempDir();
       const video = await makeVideo(dir, name);
@@ -433,6 +433,30 @@ describe("Transcribe again", () => {
     expect(await filesIn(dir)).toEqual(["lesson.mp4"]);
   });
 
+  test("replaces the Subtitle track of an MKV, keeping its other subtitles", async () => {
+    const dir = await tempDir();
+    const existing = "1\n00:00:00,500 --> 00:00:01,500\nHello\n\n";
+    const video = await makeVideo(dir, "lesson.mkv", { subtitleSrt: existing });
+    const elevenLabs = await fakeElevenLabs(wordsReply(), wordsReply(OTHER_WORDS));
+    await runTranscription(requestFor(video), await makeWorld(elevenLabs.fetch));
+    const world = await makeWorld(elevenLabs.fetch);
+
+    const outcome = await runTranscription(requestFor(video, "t2", true), world);
+
+    expect(outcome).toEqual({ kind: "done", message: "Japanese subtitles replaced in lesson.mkv" });
+    const after = await probe(video);
+    expect(after.streams.map((s) => `${s.codec_type}:${s.codec_name}`)).toEqual([
+      "video:mpeg4",
+      "audio:aac",
+      "subtitle:subrip",
+      "subtitle:subrip",
+    ]);
+    expect(after.streams[3]!.tags).toMatchObject({ language: "jpn", title: "Japanese" });
+    expect(await subtitleText(video, 0)).toBe(existing);
+    expect(await subtitleText(video, 1)).toBe(OTHER_SRT);
+    expect(await filesIn(dir)).toEqual(["lesson.mkv"]);
+  });
+
   test("of a Video without a Subtitle track is an ordinary Transcription", async () => {
     const dir = await tempDir();
     const video = await makeVideo(dir, "lesson.mp4");
@@ -448,8 +472,8 @@ describe("Transcribe again", () => {
 describe("Videos that are turned away", () => {
   const cases = [
     {
-      what: "a file type other than MP4, M4V or MOV",
-      make: (dir: string) => makeVideo(dir, "show.mkv"),
+      what: "a file type other than MP4, M4V, MOV or MKV",
+      make: (dir: string) => makeVideo(dir, "show.avi"),
       message: "Subtitles can't be added to this file type.",
     },
     {

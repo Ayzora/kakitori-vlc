@@ -22,7 +22,8 @@ export async function checkCopy(
   const copy = await inspect(ffprobe, copyPath);
   const kept = (s: Stream) => !allowMissingData || s.codec_type !== "data";
   const replaced = (s: Stream) => replace && isSubtitleTrack(s);
-  const expected = [...video.streams.filter((s) => kept(s) && !replaced(s)).map(signature), "subtitle:mov_text"];
+  const subtitle = `subtitle:${containerOf(copyPath).subtitleCodec}`;
+  const expected = [...video.streams.filter((s) => kept(s) && !replaced(s)).map(signature), subtitle];
   const actual = copy.streams.filter(kept).map(signature);
   const complete =
     hasSubtitleTrack(copy) &&
@@ -67,6 +68,12 @@ export async function makeWorkingCopy(
   return { dataRemoved: check.dataRemoved };
 }
 
+function containerOf(path: string) {
+  const ext = extname(path).toLowerCase();
+  if (ext === ".mkv") return { format: "matroska", subtitleCodec: "subrip", brand: false };
+  return { format: ext === ".mov" ? "mov" : "mp4", subtitleCodec: "mov_text", brand: true };
+}
+
 function signature(s: Stream) {
   return `${s.codec_type}:${s.codec_name ?? s.codec_tag_string ?? "?"}`;
 }
@@ -86,8 +93,9 @@ function mux(
 ) {
   const replaced = replace ? video.streams.filter(isSubtitleTrack) : [];
   const n = streamsOfType(video, "subtitle").length - replaced.length;
-  const format = extname(videoPath).toLowerCase() === ".mov" ? "mov" : "mp4";
-  const brand = video.tags.major_brand ? ["-brand", video.tags.major_brand] : [];
+  const container = containerOf(videoPath);
+  const brand = container.brand && video.tags.major_brand ? ["-brand", video.tags.major_brand] : [];
+  const title = container.format === "matroska" ? [`-metadata:s:s:${n}`, "title=Japanese"] : [];
   const created = video.tags.creation_time ? ["-metadata", `creation_time=${video.tags.creation_time}`] : [];
   return runProcess([
     ffmpeg, ...QUIET_FFMPEG,
@@ -95,11 +103,12 @@ function mux(
     "-map", "0", ...(withoutData ? ["-map", "-0:d?"] : []),
     ...replaced.flatMap((s) => ["-map", `-0:${s.index}`]),
     "-map", "1",
-    "-c", "copy", `-c:s:${n}`, "mov_text",
+    "-c", "copy", `-c:s:${n}`, container.subtitleCodec,
     `-metadata:s:s:${n}`, "language=jpn",
     `-metadata:s:s:${n}`, "handler_name=Japanese",
+    ...title,
     ...created,
     ...brand,
-    "-f", format, out,
+    "-f", container.format, out,
   ]);
 }

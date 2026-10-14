@@ -29,7 +29,7 @@ export type Outcome = { kind: "done" | "already-subtitled" | "pending" | "error"
 
 type ReportState = (state: State) => Promise<void>;
 
-const SUPPORTED = new Set([".mp4", ".m4v", ".mov"]);
+const SUPPORTED = new Set([".mp4", ".m4v", ".mov", ".mkv"]);
 const MOVED = "The video was moved or deleted during the transcription. Open it again in VLC and transcribe it again.";
 const MAX_SECONDS = 10 * 60 * 60;
 const MAX_UPLOAD_BYTES = 3 * 1024 ** 3;

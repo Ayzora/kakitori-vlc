@@ -16,7 +16,7 @@ function descriptor()
     version = "1.0.0",
     author = "Kakitori contributors",
     shortdesc = "Japanese subtitles inside your videos",
-    description = "Transcribes the MP4, M4V or MOV you are watching with ElevenLabs "
+    description = "Transcribes the MP4, M4V, MOV or MKV you are watching with ElevenLabs "
       .. "and adds Japanese subtitles as a track inside the same file.",
     capabilities = {},
   }
@@ -411,8 +411,8 @@ local function playing_video()
   local uri = item:uri() or ""
   if not uri:match("^file://") then return nil, "Kakitori can only transcribe a video file on this computer." end
   local ext = (uri:match("%.(%w+)$") or ""):lower()
-  if ext ~= "mp4" and ext ~= "m4v" and ext ~= "mov" then
-    return nil, "Subtitles can't be added to this file type. Kakitori works with MP4, M4V and MOV."
+  if ext ~= "mp4" and ext ~= "m4v" and ext ~= "mov" and ext ~= "mkv" then
+    return nil, "Subtitles can't be added to this file type. Kakitori works with MP4, M4V, MOV and MKV."
   end
   return { uri = uri, duration = item:duration() }
 end

@@ -49,5 +49,6 @@ export function hasSubtitleTrack(info: VideoInfo) {
 }
 
 export function isSubtitleTrack(s: Stream) {
-  return s.codec_type === "subtitle" && s.tags?.language === "jpn" && s.tags?.handler_name === "Japanese";
+  const handler = s.tags?.handler_name ?? s.tags?.HANDLER_NAME;
+  return s.codec_type === "subtitle" && s.tags?.language === "jpn" && handler === "Japanese";
 }
