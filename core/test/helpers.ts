@@ -48,7 +48,8 @@ export async function makeVideo(dir: string, name: string, options: VideoOptions
   }
   args.push("-map", "0:v");
   audio.forEach((_, i) => args.push("-map", `${i + 1}:a`));
-  if (srtInput !== null) args.push("-map", `${srtInput}:s`, "-c:s", "mov_text");
+  const subtitleCodec = name.toLowerCase().endsWith(".mkv") ? "srt" : "mov_text";
+  if (srtInput !== null) args.push("-map", `${srtInput}:s`, "-c:s", subtitleCodec);
   args.push("-c:v", "mpeg4");
   audio.forEach((track, i) => {
     args.push(`-c:a:${i}`, track.codec ?? "aac");

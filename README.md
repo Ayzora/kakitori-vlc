@@ -2,9 +2,9 @@
 
 Japanese subtitles for your own Japanese videos, made from inside VLC.
 
-Play a video, click Start and keep watching. Kakitori sends the audio to [ElevenLabs](https://elevenlabs.io) Scribe v2 and adds the result as a subtitle track inside the same video file, so the subtitles go wherever the file goes. They work in VLC, QuickTime, the Apple TV app and Films & TV.
+Play a video, click Start and keep watching. Kakitori sends the audio to [ElevenLabs](https://elevenlabs.io) Scribe v2 and adds the result as a subtitle track inside the same video file, so the subtitles go wherever the file goes. They work in VLC, QuickTime, the Apple TV app and Films & TV. In MKV files they work in VLC and other players that open MKV.
 
-Works with VLC 3.0.x on macOS (Apple Silicon and Intel), Windows x64 and Ubuntu x64, for MP4, M4V and MOV files on your own drive. On Ubuntu, VLC must be installed with `sudo apt install vlc`; the Snap and Flatpak versions aren't supported.
+Works with VLC 3.0.x on macOS (Apple Silicon and Intel), Windows x64 and Ubuntu x64, for MP4, M4V, MOV and MKV files on your own drive. On Ubuntu, VLC must be installed with `sudo apt install vlc`; the Snap and Flatpak versions aren't supported.
 
 ## What you need
 
