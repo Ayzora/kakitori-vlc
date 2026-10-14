@@ -13,7 +13,7 @@ local dialog = nil
 function descriptor()
   return {
     title = "Kakitori",
-    version = "1.0.0",
+    version = "1.3.0",
     author = "Kakitori contributors",
     shortdesc = "Japanese subtitles inside your videos",
     description = "Transcribes the MP4, M4V, MOV or MKV you are watching with ElevenLabs "
